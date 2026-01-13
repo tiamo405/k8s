@@ -1,0 +1,71 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: car-serv-deployment
+  name: car-serv-deployment
+  namespace: car-serv
+spec:
+  replicas: 4
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app: car-serv-deployment
+  template:
+    metadata:
+      labels:
+        app: car-serv-deployment
+      namespace: car-serv
+    spec:
+      containers:
+        #- image: elroydevops/car-serv
+        - image: nginx
+          imagePullPolicy: Always
+          name: car-serv
+          ports:
+            - containerPort: 80
+              name: tcp
+              protocol: TCP
+
+
+upstream my_servers {
+    server 100.99.158.118:30080;
+    server 100.118.24.16:30080;
+}
+
+server {
+    listen 80;
+
+    location / {
+        proxy_pass http://my_servers;
+        proxy_redirect off;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: car-serv-ingress
+  namespace: car-serv
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: car-serv-onpre.devopsedu.vn
+      http:
+        paths:
+          - backend:
+              service:
+                name: car-ser1-service
+                port:
+                  number: 80
+            path: /
+            pathType: Prefix
