@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    run: env-args-pod
+  name: env-args-pod
+spec:
+  containers:
+  - image: busybox
+    name: env-args-pod
+    command: ["/bin/sh"]
+    args: ["-c", "echo $MESSAGE && sleep 3600"]
+    env:
+    - name: MESSAGE
+      value: Hello-Kubernetes
+    resources: {}
+  dnsPolicy: ClusterFirst
+  restartPolicy: Always
+status: {}

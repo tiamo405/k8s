@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    run: volume-pod
+  name: volume-pod
+spec:
+  containers:
+  - image: busybox
+    name: write
+    command: ['/bin/sh']
+    args: ['-c', 'while true; do echo "hello ckad" >> /data/file.txt; sleep 5; done']
+    volumeMounts:
+    - name: shared-data
+      mountPath: /data
+    resources: {}
+
+  - image: busybox
+    name: reader
+    command: ['/bin/sh']
+    args: ['-c', 'tail -f  /data/file.txt']
+    volumeMounts:
+    - name: shared-data
+      mountPath: /data
+  dnsPolicy: ClusterFirst
+  restartPolicy: Always
+  volumes:
+  - name: shared-data
+    emptyDir: {}
+status: {}

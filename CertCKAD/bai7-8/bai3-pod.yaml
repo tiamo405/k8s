@@ -1,0 +1,28 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    run: init-pod
+  name: init-pod
+spec:
+  initContainers:
+  - image: busybox
+    name: init-config
+    command: ['/bin/sh']
+    args: ['-c', 'echo "app started" >> /config/app.conf']
+    volumeMounts:
+    - name: shared-data
+      mountPath: /config
+  containers:
+  - image: nginx
+    name: nginx
+    volumeMounts:
+    - name: shared-data
+      mountPath: /usr/share/nginx/html
+    resources: {}
+  volumes:
+  - name: shared-data
+    emptyDir: {}
+  dnsPolicy: ClusterFirst
+  restartPolicy: Always
+status: {}

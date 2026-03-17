@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    run: config-pod
+  name: config-pod
+spec:
+  containers:
+  - image: busybox
+    name: config-pod
+    resources: {}
+    command: ["sh", "-c", "env && sleep 3600"]
+    envFrom:
+      - configMapRef:
+          name: app-config
+      - secretRef:
+          name: db-secret
+    volumeMounts:
+      - name: config-volume
+        mountPath: /etc/config
+  volumes:
+    - name: config-volume
+      configMap:
+        name: app-config
+  dnsPolicy: ClusterFirst
+  restartPolicy: Never
+status: {}

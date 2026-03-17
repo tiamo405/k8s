@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    run: env-command-pod
+  name: env-command-pod
+spec:
+  containers:
+  - image: busybox
+    name: env-command-pod
+    command: ["/bin/sh"]
+    args: ["-c", "echo MODE: $APP_MODE; echo KEY: $API_KEY; echo POD: $POD_NAME; sleep 3600"]
+    env:
+    - name: POD_NAME
+      valueFrom:
+        fieldRef:
+          fieldPath: metadata.name
+    - name: APP_MODE_1
+      valueFrom:
+        configMapKeyRef:
+          name: app5-config
+          key: APP_MODE
+    envFrom:
+      - configMapRef:
+          name: app5-config
+      - secretRef:
+          name: app5-secret
+    resources: {}
+  dnsPolicy: ClusterFirst
+  restartPolicy: Always
+status: {}

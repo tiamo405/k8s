@@ -1,0 +1,39 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    run: backend-pod
+  name: backend-pod
+spec:
+  containers:
+  - image: busybox
+    name: backend-pod
+    resources: {}
+    command: ["sh", "-c", "sleep 3600"]
+    envFrom:
+      - configMapRef:
+          name: baitap-config
+      - secretRef:
+          name: baitap-secret
+    env:
+    - name: ENV_VAR_CONFIG
+      valueFrom:
+        configMapKeyRef:
+          name: baitap-config
+          key: APP_ENV
+    - name: ENV_VAR_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: baitap-secret
+          key: DB_USER
+
+    volumeMounts:
+      - name: config-volume
+        mountPath: /etc/config
+  volumes:
+    - name: config-volume
+      configMap:
+        name: baitap-config
+  dnsPolicy: ClusterFirst
+  restartPolicy: Never
+status: {}

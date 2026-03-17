@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    run: shared-process
+  name: shared-process
+spec:
+  shareProcessNamespace: true
+  containers:
+  - image: nginx
+    name: nginx
+  - image: busybox
+    name: monitor
+    command: ["/bin/sh"]
+    args: ["-c", "ps aux && sleep 3600"]
+    resources: {}
+  dnsPolicy: ClusterFirst
+  restartPolicy: Always
+status: {}
