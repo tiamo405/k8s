@@ -76,23 +76,23 @@ kubectl get events --field-selector involvedObject.name=<pod-name>
 # ConfigMap và Secret
 1. tạo secret nhanh
 ```bash
-kubectl create secret generic my-secret --from-literal=username=admin --from-literal=password=password123 --dry-run=client -o yaml > my-secret.yaml
+kubectl create secret generic <secret-name> --from-literal=username=admin --from-literal=password=password123 --dry-run=client -o yaml > my-secret.yaml
 ```
 2. tạo configmap nhanh
 ```bash
-kubectl create configmap my-config --from-literal=key1=value1 --from-literal=key2=value2 --dry-run=client -o yaml > my-config.yaml
+kubectl create configmap <configmap-name> --from-literal=key1=value1 --from-literal=key2=value2 --dry-run=client -o yaml > my-config.yaml
 ```
 
 3. edit configmap
 ```bash
-kubectl edit configmap my-config
+kubectl edit configmap <configmap-name>
 # sau khi edit xong thì phải xóa pod đi để nó tạo lại với config mới
 kubectl delete pod <pod-name>
 kubectl apply -f my-pod.yaml
 ```
 4. edit secret
 ```bash
-kubectl edit secret my-secret
+kubectl edit secret <secret-name>
 # sau khi edit xong thì phải xóa pod đi để nó tạo lại với config mới
 kubectl delete pod <pod-name>
 kubectl apply -f my-pod.yaml
@@ -101,42 +101,48 @@ kubectl apply -f my-pod.yaml
 # Deployment
 1. cách tạo deployment nhanh
 ```bash
-kubectl create deployment nginx-deployment --image=nginx --dry-run=client -o yaml > deployment.yaml
+kubectl create deployment <deployment-name> --image=nginx --dry-run=client -o yaml > deployment.yaml
 ```
 2. scale deployment
 ```bash
-kubectl scale deployment nginx-deployment --replicas=5
+kubectl scale deployment/<deployment-name> --replicas=5
 ```
 3. update image của deployment
 ```bash
-kubectl set image deployment/nginx-deployment <container-name>=nginx:latest
+kubectl set image deployment/<deployment-name> <container-name>=nginx:latest
 ```
 4. update image
 ```bash
-kubectl set image deployment/nginx-deployment <container-name>=nginx:latest --record
+kubectl set image deployment/<deployment-name> <container-name>=nginx:latest --record
 ```
 5. kiem tra rollout deployment
 ```bash
-kubectl rollout status deployment/nginx-deployment
+kubectl rollout status deployment/<deployment-name>
 ```
 6. rollback deployment
 ```bash
-kubectl rollout undo deployment/nginx-deployment
+kubectl rollout undo deployment/<deployment-name>
 ```
 7. xem lịch sử rollout
 ```bash
-kubectl rollout history deployment/nginx-deployment
+kubectl rollout history deployment/<deployment-name>
 ```
 
 # Service
 1. cách tạo service nhanh
-```bash 
-kubectl expose deployment nginx --port=80 --type=NodePort --dry-run=client -o yaml > service.yaml
+```bash
+kubectl expose deployment <deployment-name> --port=80 --target-port=80 --dry-run=client -o yaml > service.yaml
+```
+2. lưu ý
+```bash
+port: là cổng mà service sẽ expose ra bên ngoài
+targetPort: là cổng mà container trong pod đang lắng nghe, nếu không chỉ rõ targetPort thì mặc định sẽ là port
+nodePort: là cổng mà service sẽ expose ra trên node, nếu không chỉ rõ nodePort thì Kubernetes sẽ tự động chọn một cổng trong khoảng 30000-32767
 ```
 # Namespace
 1. tạo namespace nhanh
 ```bash
-kubectl create namespace my-namespace --dry-run=client -o yaml > my-namespace.yaml
+kubectl create namespace <namespace-name> --dry-run=client -o yaml > <namespace-name>.yaml
 ```
 
 
@@ -152,22 +158,83 @@ kubectl create namespace my-namespace --dry-run=client -o yaml > my-namespace.ya
 - successThreshold: số lần probe thành công trước khi coi là container sống/sẵn sàng/khởi động thành công
 5. Mẫu probe:
 ```yaml
-livenessProbe:
-  httpGet:
-    path: /
-    port: 8080
-  initialDelaySeconds: 10
-  periodSeconds: 5
-readinessProbe:
-  httpGet:
-    path: /
-    port: 8080
-  initialDelaySeconds: 10
-  periodSeconds: 5
-startupProbe:
-  httpGet:
-    path: /
-    port: 8080
-  initialDelaySeconds: 10
-  periodSeconds: 5
+apiVersion: v1
+kind: Pod
+metadata:
+  name: liveness-pod
+spec:
+  containers:
+  - name: busybox
+    image: busybox
+    command: ['/bin/sh']
+    args: ['-c', 'while true; do echo hello; sleep 10;done']
+    livenessProbe:
+      httpGet:
+        path: /
+        port: 8080
+      initialDelaySeconds: 10
+      periodSeconds: 5
+    readinessProbe:
+      httpGet:
+        path: /
+        port: 8080
+      initialDelaySeconds: 10
+      periodSeconds: 5
+    startupProbe:
+      httpGet:
+        path: /
+        port: 8080
+      initialDelaySeconds: 10
+      periodSeconds: 5
+```
+
+# HPA
+Cảnh báo thi CKAD: Nếu Pod không có requests.cpu => HPA sẽ không hoạt động => Mất điểm.
+luôn dùng apiVersion: autoscaling/v2  
+Không quên requests.cpu
+1. lệnh tạo HPA nhanh
+```bash
+kubectl autoscale deployment <deployment-name> --cpu=50% --min=1 --max=10 --dry-run=client -o yaml > hpa.yaml
+```
+2. xem HPA
+```bash
+kubectl get hpa
+```
+3. xem describe HPA
+```bash
+kubectl describe hpa <hpa-name>
+```
+4. xem scale target của HPA
+```bash
+kubectl get hpa <hpa-name> -o jsonpath='{.spec.scaleTargetRef.name}'
+```
+5. xem current replicas của HPA
+```bash
+kubectl get hpa <hpa-name> -o jsonpath='{.status.currentReplicas}'
+```
+6. sửa HPA
+```bash
+kubectl edit hpa <hpa-name>
+```
+
+# Ingress
+1. cách tạo ingress nhanh
+```bash
+kubectl create ingress <ingress-name> --rule='host/path=service:port' --dry-run=client -o yaml > ingress.yaml
+```
+2. xem ingress
+```bash
+kubectl get ingress
+```
+3. xem describe ingress
+```bash
+kubectl describe ingress <ingress-name>
+```
+4. xem rules của ingress
+```bash
+kubectl get ingress <ingress-name> -o jsonpath='{.spec.rules[*].host}'
+```
+5. sửa ingress
+```bash
+kubectl edit ingress <ingress-name>
 ```

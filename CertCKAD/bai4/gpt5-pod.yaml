@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    run: db-pod
+  name: db-pod
+spec:
+  containers:
+  - image: busybox
+    name: db-pod
+    command: ["/bin/sh"]
+    args: ["-c", "env && sleep 3600"]
+    envFrom:
+      - secretRef:
+          name: db-secret
+    resources: {}
+  dnsPolicy: ClusterFirst
+  restartPolicy: Always
+status: {}

@@ -30,10 +30,15 @@ spec:
     volumeMounts:
       - name: config-volume
         mountPath: /etc/config
+      - name: secret-volume
+        mountPath: /etc/secret
   volumes:
     - name: config-volume
       configMap:
-        name: baitap-config
+        name: baitap-
+    - name: secret-volume
+      secret:
+        secretName: baitap-secret
   dnsPolicy: ClusterFirst
   restartPolicy: Never
 status: {}

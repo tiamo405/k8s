@@ -2,15 +2,15 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
-    app: car-serv
-  name: car-serv-deployment
-  namespace: car-serv
+    app: ecommerce-backend
+  name: ecommerce-backend-deployment
+  namespace: ecommerce
 spec:
-  replicas: 2
+  replicas: 1
   revisionHistoryLimit: 11
   selector:
     matchLabels:
-      app: car-serv
+      app: ecommerce-backend
   strategy:
     rollingUpdate:
       maxSurge: 25%
@@ -19,23 +19,23 @@ spec:
   template:
     metadata:
       labels:
-        app: car-serv
-      namespace: car-serv
+        app: ecommerce-backend
+      namespace: ecommerce
     spec:
       containers:
-        - image: elroydevops/car-serv
+        - image: namtiamo/ecommerce-backend:v1
           imagePullPolicy: Always
-          name: car-serv
+          name: ecommerce-backend
           ports:
-            - containerPort: 80
+            - containerPort: 8080
               name: tcp
               protocol: TCP
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: car-serv-service
-  namespace: car-serv
+  name: ecommerce-backend-service
+  namespace: ecommerce
 spec:
   internalTrafficPolicy: Cluster
   ipFamilies:
@@ -43,29 +43,29 @@ spec:
   ipFamilyPolicy: SingleStack
   ports:
     - name: tcp
-      port: 80
+      port: 8080
       protocol: TCP
-      targetPort: 80
+      targetPort: 8080
   selector:
-    app: car-serv
+    app: ecommerce-backend
   sessionAffinity: None
   type: ClusterIP
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: car-serv-ingress
-  namespace: car-serv
+  name: ecommerce-backend-ingress
+  namespace: ecommerce
 spec:
   ingressClassName: nginx
   rules:
-    - host: car-serv-onpre.devopsedu.vn
+    - host: api-ecommerce.devopsedu.vn
       http:
         paths:
           - backend:
               service:
-                name: car-serv-service
+                name: ecommerce-backend-service
                 port:
-                  number: 80
+                  number: 8080
             path: /
             pathType: Prefix

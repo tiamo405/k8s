@@ -1,0 +1,24 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: exam-web
+  name: exam-web
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: exam-web
+  strategy: {}
+  template:
+    metadata:
+      labels:
+        app: exam-web
+    spec:
+      containers:
+      - image: httpd
+        name: httpd
+        ports:
+        - containerPort: 80
+        resources: {}
+status: {}

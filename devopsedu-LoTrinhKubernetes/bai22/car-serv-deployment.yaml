@@ -2,31 +2,28 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
-    app: ecommerce-backend
-  name: ecommerce-backend-deployment
-  namespace: ecommerce
+    workload.user.cattle.io/workloadselector: apps.deployment-car-serv-car-serv-deployment
+  name: car-serv-deployment
+  namespace: car-serv
 spec:
-  replicas: 1
+  replicas: 2
   revisionHistoryLimit: 10
   selector:
     matchLabels:
-      app: ecommerce-backend
-  strategy:
-    rollingUpdate:
-      maxSurge: 25%
-      maxUnavailable: 25%
-    type: RollingUpdate
+      workload.user.cattle.io/workloadselector: apps.deployment-car-serv-car-serv-deployment
+      app: car-serv
   template:
     metadata:
       labels:
-        app: ecommerce-backend
-      namespace: ecommerce
+        workload.user.cattle.io/workloadselector: apps.deployment-car-serv-car-serv-deployment
+        app: car-serv
+      namespace: car-serv
     spec:
       containers:
-        - image: namtiamo/ecommerce-backend:v5
+        - image: elroydevops/car-serv
           imagePullPolicy: Always
-          name: ecommerce-backend
+          name: car-serv
           ports:
-            - containerPort: 8080
+            - containerPort: 80
               name: tcp
               protocol: TCP

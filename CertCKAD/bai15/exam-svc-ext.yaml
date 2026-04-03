@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: exam-web
+  name: exam-web
+spec:
+  ports:
+  - port: 8080
+    protocol: TCP
+    targetPort: 80
+    nodePort: 30081
+  selector:
+    app: exam-web
+  type: NodePort
+status:
+  loadBalancer: {}
