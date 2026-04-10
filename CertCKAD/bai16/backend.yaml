@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    app: backend
+  name: backend
+  namespace: net-test
+spec:
+  containers:
+  - image: nginx
+    name: backend
+    resources: {}
+  dnsPolicy: ClusterFirst
+  restartPolicy: Always
+status: {}

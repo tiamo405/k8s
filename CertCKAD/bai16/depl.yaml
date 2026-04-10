@@ -3,6 +3,7 @@ kind: Deployment
 metadata:
   labels:
     app: web
+  namespace: client
   name: web
 spec:
   replicas: 2

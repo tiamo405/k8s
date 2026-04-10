@@ -1,0 +1,20 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-namespace
+  namespace: net-test
+spec:
+  podSelector:
+    matchLabels:
+      app: backend
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: client
+
+# muoons pod tu namespace client co the truy cap vao backend thi dung namespaceSelector thay vi podSelector
+# lúc tạo namespace : kubectl create ns client --dry-run=client -o yaml > ns-client.yaml thì cần sửa thêm labels.name: client vào metadata của namespace client
+# neu namespace da ton tai roi thi dung command: kubectl label ns client name=client --overwrite de them labels.name: client vao namespace client
