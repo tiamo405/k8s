@@ -1,15 +1,23 @@
 
 # Cách gán kubectl cho termial
-```bash
 nano ~/.bashrc
+```
 source <(kubectl completion bash)
+alias k=kubectl
+complete -F __start_kubectl k
+alias kgp='kubectl get pod -o wide'
+alias kdp='kubectl describe pod'
+```
 source ~/.bashrc
+
 sau đó là có thể sử dụng được kubectl trên terminal như kubeclt get pods
-``` 
+ 
 # Pod
 1. cách tạo pod yml nhanh khi thi chứ không viết từ đầu
 ```bash
 kubectl run <tên-pod> --image=<tên-image> --dry-run=client -o yaml > pod.yaml
+co namespace
+kubectl run <tên-pod> --image=<tên-image> -n <namespace> --dry-run=client -o yaml > pod.yaml
 ```
 2. exec
 ```bash
@@ -237,4 +245,53 @@ kubectl get ingress <ingress-name> -o jsonpath='{.spec.rules[*].host}'
 5. sửa ingress
 ```bash
 kubectl edit ingress <ingress-name>
+```
+
+# network policy
+
+
+# PV PVC
+1. cách tạo pv 
+```bash
+# cần minikube ssh để tạo thư mục /mnt/data trên node minikube sudo mkdir -p /mnt/data
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: local-pv
+spec:
+  capacity:
+    storage: 5Gi
+  volumeMode: Filesystem
+  accessModes:
+  - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: manual
+  hostPath:
+    path: /mnt/data
+```
+2. cách tạo pvc
+```bash
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: local-pvc
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: manual
+```
+3. dymamic provisioning
+```bash
+# PVC có storageClassName: local-storage sẽ tự động tạo PV dynamic nếu có provisioner.
+#CKAD Tip: Khi đề nói “use default storage class”, chỉ cần tạo PVC có storageClassName: "" hoặc bỏ field này.
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: local-storage
+provisioner: kubernetes.io/no-provisioner
+volumeBindingMode: WaitForFirstConsumer
+reclaimPolicy: Delete
 ```
