@@ -4,6 +4,11 @@ metadata:
   name: front-end
 spec:
   maxReplicas: 5
+  minReplicas: 1
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: front-end
   metrics:
   - resource:
       name: cpu
@@ -11,11 +16,6 @@ spec:
         averageUtilization: 50
         type: Utilization
     type: Resource
-  minReplicas: 1
-  scaleTargetRef:
-    apiVersion: apps/v1
-    kind: Deployment
-    name: front-end
 status:
   currentMetrics: null
   desiredReplicas: 0
