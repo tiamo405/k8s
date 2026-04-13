@@ -1,0 +1,325 @@
+# ============================================================================
+# COMPREHENSIVE SERVICE EXAMPLES FOR CKAD EXAM
+# Includes: ClusterIP, NodePort, LoadBalancer, ExternalName, multi-port
+# ============================================================================
+
+---
+# ============================================================================
+# CLUSTERIP SERVICE (DEFAULT) - Internal communication
+# ============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: app-service-clusterip
+  namespace: default
+  labels:
+    app: myapp
+spec:
+  # ClusterIP is default, only accessible within cluster
+  type: ClusterIP
+  
+  # Cluster IP address (auto-assigned if omitted)
+  clusterIP: 10.96.0.1
+  clusterIPs:
+  - 10.96.0.1
+  
+  # Pod selector - which pods to route to
+  selector:
+    app: myapp
+    tier: backend
+  
+  # Port mappings
+  ports:
+  # Single port
+  - port: 80
+    targetPort: 8080
+    name: http
+    protocol: TCP
+  
+  # Multiple ports
+  - port: 443
+    targetPort: 8443
+    name: https
+    protocol: TCP
+  
+  - port: 3306
+    targetPort: 3306
+    name: mysql
+    protocol: TCP
+  
+  # Session affinity (sticky sessions)
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 10800
+
+---
+# ============================================================================
+# NODEPORT SERVICE - External access via node port
+# ============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: app-service-nodeport
+  namespace: default
+  labels:
+    app: myapp
+spec:
+  type: NodePort
+  
+  # Pod selector
+  selector:
+    app: myapp
+  
+  ports:
+  - port: 80              # Service port (cluster-internal)
+    targetPort: 8080      # Pod port
+    nodePort: 30080       # Node port (30000-32767, auto-assigned if omitted)
+    name: http
+    protocol: TCP
+  
+  - port: 443
+    targetPort: 8443
+    nodePort: 30443
+    name: https
+    protocol: TCP
+
+---
+# ============================================================================
+# LOADBALANCER SERVICE - External cloud load balancer
+# ============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: app-service-loadbalancer
+  namespace: default
+spec:
+  type: LoadBalancer
+  
+  selector:
+    app: myapp
+  
+  # External IP (cloud provider assigns this)
+  # externalIPs:
+  # - 203.0.113.142
+  
+  ports:
+  - port: 80
+    targetPort: 8080
+    protocol: TCP
+  
+  # Load balancer source IP control
+  loadBalancerSourceRanges:
+  - "203.0.113.0/24"
+  - "205.0.113.0/25"
+
+---
+# ============================================================================
+# EXTERNALNAME SERVICE - Route to external DNS name
+# ============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: external-db-service
+  namespace: default
+spec:
+  type: ExternalName
+  externalName: db.example.com
+  
+  ports:
+  - port: 5432
+    targetPort: 5432
+    protocol: TCP
+
+---
+# ============================================================================
+# HEADLESS SERVICE (NO CLUSTER IP) - For StatefulSets, DNS
+# ============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: headless-service
+  namespace: default
+spec:
+  # Setting clusterIP to "None" makes this headless
+  clusterIP: None
+  
+  selector:
+    app: myapp
+  
+  ports:
+  - port: 80
+    targetPort: 8080
+    protocol: TCP
+    name: http
+
+---
+# ============================================================================
+# SERVICE WITH EXTERNAL IPS
+# ============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: service-with-external-ips
+  namespace: default
+spec:
+  type: ClusterIP
+  
+  selector:
+    app: myapp
+  
+  # External IPs (must be routable from outside cluster)
+  externalIPs:
+  - 80.11.12.10
+  
+  ports:
+  - port: 80
+    targetPort: 8080
+
+---
+# ============================================================================
+# SERVICE WITH ENDPOINTS (MANUAL - No pod selector)
+# ============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: manual-endpoint-service
+  namespace: default
+spec:
+  type: ClusterIP
+  
+  ports:
+  - port: 5432
+    targetPort: 5432
+    protocol: TCP
+    name: postgresql
+
+# Corresponding Endpoints object (manually created)
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: manual-endpoint-service
+  namespace: default
+subsets:
+- addresses:
+  - ip: 192.168.1.100
+  - ip: 192.168.1.101
+  ports:
+  - port: 5432
+    name: postgresql
+
+---
+# ============================================================================
+# SERVICE WITH APP SELECTOR - Multi-port service
+# ============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: app-service-multiport
+  namespace: default
+  labels:
+    app: web-app
+spec:
+  type: ClusterIP
+  
+  selector:
+    app: web-app
+  
+  ports:
+  # HTTP port
+  - name: http
+    port: 80
+    targetPort: 8080
+    protocol: TCP
+  
+  # HTTPS port
+  - name: https
+    port: 443
+    targetPort: 8443
+    protocol: TCP
+  
+  # Database port
+  - name: db
+    port: 5432
+    targetPort: 5432
+    protocol: TCP
+  
+  # Cache port
+  - name: redis
+    port: 6379
+    targetPort: 6379
+    protocol: TCP
+
+---
+# ============================================================================
+# DEPLOYMENT WITH SERVICE
+# ============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-app
+  namespace: default
+spec:
+  replicas: 3
+  
+  selector:
+    matchLabels:
+      app: nginx-app
+  
+  template:
+    metadata:
+      labels:
+        app: nginx-app
+    
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:latest
+        ports:
+        - containerPort: 80
+        
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+
+---
+# ClusterIP Service for the deployment
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-app-service
+  namespace: default
+spec:
+  type: ClusterIP
+  
+  selector:
+    app: nginx-app
+  
+  ports:
+  - port: 80
+    targetPort: 80
+    protocol: TCP
+
+---
+# ============================================================================
+# QUICK REFERENCE - SERVICE COMMANDS
+# ============================================================================
+# kubectl expose deployment <deployment-name> --port=80 --target-port=8080 --type=ClusterIP --dry-run=client -o yaml > service.yaml
+# 
+# kubectl get svc                 # List all services
+# kubectl get svc -o wide         # Detailed view
+# kubectl describe svc <svc-name> # Service details
+#
+# kubectl edit svc <svc-name>     # Edit service
+# kubectl delete svc <svc-name>   # Delete service
+#
+# # Port forward to pod via service
+# kubectl port-forward svc/<svc-name> 8080:80
+#
+# # Test service connectivity
+# kubectl exec -it <pod-name> -- curl http://<service-name>:<port>

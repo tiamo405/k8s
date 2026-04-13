@@ -1,0 +1,455 @@
+# ============================================================================
+# COMPREHENSIVE POD EXAMPLES FOR CKAD EXAM
+# Includes: All volume types, environment variables, probes, multi-container
+# ============================================================================
+
+---
+# ============================================================================
+# SINGLE CONTAINER POD WITH ALL VOLUME TYPES
+# ============================================================================
+apiVersion: v1
+kind: Pod
+metadata:
+  name: comprehensive-pod
+  namespace: default
+  labels:
+    app: test-app
+    tier: backend
+  annotations:
+    description: "Pod with all volume types and environment variables"
+spec:
+  # Service Account
+  serviceAccountName: default
+  
+  # Restart policy
+  restartPolicy: Always
+
+  # Containers
+  containers:
+  - name: main-container
+    image: nginx:latest
+    imagePullPolicy: IfNotPresent
+    
+    # Ports
+    ports:
+    - name: http
+      containerPort: 80
+      protocol: TCP
+    
+    # ====== ENVIRONMENT VARIABLES (4 SOURCES) ======
+    env:
+    # 1. Literal values
+    - name: APP_VERSION
+      value: "1.0"
+    
+    # 2. From ConfigMap
+    - name: CONFIG_VAR
+      valueFrom:
+        configMapKeyRef:
+          name: app-config
+          key: app-name
+          optional: false
+    
+    # 3. From Secret
+    - name: SECRET_VAR
+      valueFrom:
+        secretKeyRef:
+          name: app-secret
+          key: db-password
+          optional: false
+    
+    # 4. From Pod metadata (downwardAPI)
+    - name: POD_NAME
+      valueFrom:
+        fieldRef:
+          fieldPath: metadata.name
+    - name: POD_NAMESPACE
+      valueFrom:
+        fieldRef:
+          fieldPath: metadata.namespace
+    - name: POD_IP
+      valueFrom:
+        fieldRef:
+          fieldPath: status.podIP
+    
+    # Resource limits and requests
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "100m"
+      limits:
+        memory: "256Mi"
+        cpu: "200m"
+    
+    # ====== PROBES ======
+    livenessProbe:
+      httpGet:
+        path: /
+        port: http
+      initialDelaySeconds: 10
+      periodSeconds: 15
+      failureThreshold: 3
+    
+    readinessProbe:
+      httpGet:
+        path: /
+        port: http
+      initialDelaySeconds: 5
+      periodSeconds: 10
+      failureThreshold: 2
+    
+    # ====== VOLUME MOUNTS ======
+    volumeMounts:
+    - name: empty-dir
+      mountPath: /tmp/cache
+    - name: host-path
+      mountPath: /host-data
+    - name: config-map
+      mountPath: /etc/config
+    - name: secret
+      mountPath: /etc/secrets
+    - name: pvc
+      mountPath: /data
+    - name: downward-api
+      mountPath: /etc/podinfo
+
+  # ====== VOLUMES ======
+  volumes:
+  - name: empty-dir
+    emptyDir:
+      sizeLimit: "500Mi"
+  
+  - name: host-path
+    hostPath:
+      path: /tmp
+      type: Directory
+  
+  - name: config-map
+    configMap:
+      name: app-config
+      defaultMode: 0644
+  
+  - name: secret
+    secret:
+      secretName: app-secret
+      defaultMode: 0600
+  
+  - name: pvc
+    persistentVolumeClaim:
+      claimName: app-pvc
+  
+  - name: downward-api
+    downwardAPI:
+      items:
+      - path: "labels"
+        fieldRef:
+          fieldPath: metadata.labels
+      - path: "annotations"
+        fieldRef:
+          fieldPath: metadata.annotations
+
+---
+# ============================================================================
+# MULTI-CONTAINER POD (SIDECAR PATTERN)
+# ============================================================================
+apiVersion: v1
+kind: Pod
+metadata:
+  name: multi-container-pod
+  namespace: default
+  labels:
+    app: multi-app
+spec:
+  containers:
+  # Main application container
+  - name: app
+    image: nginx:latest
+    ports:
+    - containerPort: 80
+    
+    env:
+    - name: POD_NAME
+      valueFrom:
+        fieldRef:
+          fieldPath: metadata.name
+    - name: POD_IP
+      valueFrom:
+        fieldRef:
+          fieldPath: status.podIP
+    
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "250m"
+      limits:
+        memory: "512Mi"
+        cpu: "500m"
+    
+    volumeMounts:
+    - name: shared-data
+      mountPath: /usr/share/nginx/html
+    - name: logs
+      mountPath: /var/log/nginx
+  
+  # Sidecar container for logging
+  - name: sidecar-logger
+    image: busybox:latest
+    command: ['sh', '-c', 'tail -f /var/log/nginx/access.log']
+    
+    resources:
+      requests:
+        memory: "64Mi"
+        cpu: "50m"
+      limits:
+        memory: "128Mi"
+        cpu: "100m"
+    
+    volumeMounts:
+    - name: logs
+      mountPath: /var/log/nginx
+  
+  # Init container - runs before main containers
+  initContainers:
+  - name: init-app
+    image: busybox:latest
+    command: ['sh', '-c', 'echo "<h1>Hello from $(hostname)</h1>" > /data/index.html']
+    volumeMounts:
+    - name: shared-data
+      mountPath: /data
+  
+  # Volumes shared between containers
+  volumes:
+  - name: shared-data
+    emptyDir: {}
+  - name: logs
+    emptyDir:
+      sizeLimit: "100Mi"
+
+---
+# ============================================================================
+# POD WITH ALL PROBE TYPES
+# ============================================================================
+apiVersion: v1
+kind: Pod
+metadata:
+  name: probes-test-pod
+  namespace: default
+spec:
+  containers:
+  - name: app
+    image: nginx:latest
+    ports:
+    - containerPort: 80
+    
+    # Startup Probe - for slow-starting apps
+    startupProbe:
+      httpGet:
+        path: /
+        port: 80
+      failureThreshold: 30
+      periodSeconds: 10
+    
+    # Liveness Probe - container still alive?
+    livenessProbe:
+      httpGet:
+        path: /
+        port: 80
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      timeoutSeconds: 3
+      failureThreshold: 3
+    
+    # Readiness Probe - ready to serve traffic?
+    readinessProbe:
+      httpGet:
+        path: /
+        port: 80
+      initialDelaySeconds: 5
+      periodSeconds: 5
+      timeoutSeconds: 2
+      failureThreshold: 2
+
+---
+# ============================================================================
+# POD WITH DIFFERENT PROBE TYPES (EXEC, TCP, STARTUP)
+# ============================================================================
+apiVersion: v1
+kind: Pod
+metadata:
+  name: advanced-probes-pod
+  namespace: default
+spec:
+  containers:
+  - name: app
+    image: busybox:latest
+    command: ['/bin/sh']
+    args: ['-c', 'while true; do echo "running" > /tmp/alive && sleep 10; done']
+    
+    # Exec probe - run a command inside container
+    livenessProbe:
+      exec:
+        command:
+        - /bin/sh
+        - -c
+        - test -f /tmp/alive
+      initialDelaySeconds: 5
+      periodSeconds: 5
+      failureThreshold: 3
+    
+    # TCP probe - check TCP port connectivity
+    readinessProbe:
+      tcpSocket:
+        port: 8080
+      initialDelaySeconds: 10
+      periodSeconds: 5
+      failureThreshold: 3
+    
+    # Startup probe with exec
+    startupProbe:
+      exec:
+        command:
+        - /bin/sh
+        - -c
+        - test -d /app
+      failureThreshold: 30
+      periodSeconds: 5
+    
+    volumeMounts:
+    - name: temp
+      mountPath: /tmp
+  
+  volumes:
+  - name: temp
+    emptyDir: {}
+
+---
+# ============================================================================
+# POD WITH RESOURCE LIMITS AND QUALITY OF SERVICE (QoS)
+# ============================================================================
+apiVersion: v1
+kind: Pod
+metadata:
+  name: guaranteed-qos-pod
+  namespace: default
+spec:
+  containers:
+  - name: app
+    image: nginx:latest
+    
+    # Requests = Limits = Guaranteed QoS class
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "250m"
+      limits:
+        memory: "256Mi"
+        cpu: "250m"
+
+---
+# ============================================================================
+# POD WITH AFFINITY AND NODE SELECTOR
+# ============================================================================
+apiVersion: v1
+kind: Pod
+metadata:
+  name: affinity-pod
+  namespace: default
+spec:
+  # Node selector - simple node selection
+  nodeSelector:
+    disktype: ssd
+  
+  # Pod affinity - schedule near/away from other pods
+  affinity:
+    podAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+            - key: app
+              operator: In
+              values:
+              - backend
+          topologyKey: kubernetes.io/hostname
+    
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+        - matchExpressions:
+          - key: kubernetes.io/hostname
+            operator: In
+            values:
+            - node-1
+            - node-2
+  
+  containers:
+  - name: app
+    image: nginx:latest
+
+---
+# ============================================================================
+# POD WITH SECURITY CONTEXT
+# ============================================================================
+apiVersion: v1
+kind: Pod
+metadata:
+  name: security-context-pod
+  namespace: default
+spec:
+  # Pod-level security context
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 3000
+    fsGroup: 2000
+  
+  containers:
+  - name: app
+    image: nginx:latest
+    
+    # Container-level security context
+    securityContext:
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: false
+      capabilities:
+        drop:
+        - ALL
+        add:
+        - NET_BIND_SERVICE
+    
+    volumeMounts:
+    - name: data
+      mountPath: /data
+  
+  volumes:
+  - name: data
+    emptyDir: {}
+
+---
+# ============================================================================
+# POD WITH ENV FROM CONFIGMAP/SECRET
+# ============================================================================
+apiVersion: v1
+kind: Pod
+metadata:
+  name: envfrom-pod
+  namespace: default
+spec:
+  containers:
+  - name: app
+    image: nginx:latest
+    
+    # Load all keys from ConfigMap as environment variables
+    envFrom:
+    - configMapRef:
+        name: app-config
+    
+    # Load all keys from Secret as environment variables
+    - secretRef:
+        name: app-secret
+    
+    # Can still add individual env vars
+    env:
+    - name: EXTRA_VAR
+      value: "extra-value"

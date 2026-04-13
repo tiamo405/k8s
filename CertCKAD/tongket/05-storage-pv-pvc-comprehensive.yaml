@@ -1,0 +1,459 @@
+# ============================================================================
+# COMPREHENSIVE STORAGE/PV/PVC EXAMPLES FOR CKAD EXAM
+# Includes: PersistentVolume, PersistentVolumeClaim, StorageClass, Dynamic Provisioning
+# ============================================================================
+
+---
+# ============================================================================
+# STORAGE CLASS - STATIC PROVISIONING
+# ============================================================================
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: manual
+provisioner: kubernetes.io/no-provisioner
+allowVolumeExpansion: true
+reclaimPolicy: Retain
+volumeBindingMode: Immediate
+
+---
+# ============================================================================
+# STORAGE CLASS - DYNAMIC PROVISIONING (LOCAL)
+# ============================================================================
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: local-storage
+provisioner: kubernetes.io/no-provisioner
+volumeBindingMode: WaitForFirstConsumer
+reclaimPolicy: Delete
+
+---
+# ============================================================================
+# STORAGE CLASS - DYNAMIC PROVISIONING (CLOUD)
+# Example: AWS EBS
+# ============================================================================
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: ebs-gp2
+provisioner: ebs.csi.aws.com
+reclaimPolicy: Delete
+allowVolumeExpansion: true
+parameters:
+  type: gp2
+  iops: "3000"
+  throughput: "125"
+  encrypted: "true"
+volumeBindingMode: WaitForFirstConsumer
+
+---
+# ============================================================================
+# PERSISTENT VOLUME - HOSTPATH (FOR DEVELOPMENT/TESTING)
+# ============================================================================
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: hostpath-pv
+  labels:
+    type: hostpath
+spec:
+  capacity:
+    storage: 5Gi
+  volumeMode: Filesystem
+  accessModes:
+  - ReadWriteOnce           # Single pod can write
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: manual
+  hostPath:
+    path: /mnt/data
+    type: DirectoryOrCreate
+
+---
+# ============================================================================
+# PERSISTENT VOLUME - NFS
+# ============================================================================
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: nfs-pv
+spec:
+  capacity:
+    storage: 100Gi
+  volumeMode: Filesystem
+  accessModes:
+  - ReadWriteMany         # Multiple pods can write
+  - ReadOnlyMany          # Multiple pods can read
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: manual
+  nfs:
+    server: nfs-server.example.com
+    path: "/exports/data"
+
+---
+# ============================================================================
+# PERSISTENT VOLUME - AWS EBS
+# ============================================================================
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: ebs-pv
+spec:
+  capacity:
+    storage: 50Gi
+  volumeMode: Filesystem
+  accessModes:
+  - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Delete
+  storageClassName: ebs-gp2
+  awsElasticBlockStore:
+    volumeID: vol-05a3a77fd71038a3f
+    fsType: ext4
+
+---
+# ============================================================================
+# PERSISTENT VOLUME - GCP PERSISTENT DISK
+# ============================================================================
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: gcp-pv
+spec:
+  capacity:
+    storage: 50Gi
+  volumeMode: Filesystem
+  accessModes:
+  - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Delete
+  storageClassName: manual
+  gcePersistentDisk:
+    pdName: gce-disk-1
+    fsType: ext4
+
+---
+# ============================================================================
+# PERSISTENT VOLUME WITH ACCESS MODES
+# ============================================================================
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: multi-access-pv
+spec:
+  capacity:
+    storage: 20Gi
+  volumeMode: Filesystem
+  
+  # Access modes:
+  # ReadWriteOnce (RWO):  Single pod read/write
+  # ReadOnlyMany (ROX):   Multiple pods read-only
+  # ReadWriteMany (RWX):  Multiple pods read/write (requires NFS, etc)
+  accessModes:
+  - ReadWriteMany
+  
+  persistentVolumeReclaimPolicy: Recycle  # Delete, Recycle, Retain
+  storageClassName: manual
+  nfs:
+    server: 192.168.1.100
+    path: "/shared"
+
+---
+# ============================================================================
+# PERSISTENT VOLUME CLAIM - BASIC
+# ============================================================================
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: simple-pvc
+  namespace: default
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: manual
+
+---
+# ============================================================================
+# PERSISTENT VOLUME CLAIM - WITH SELECTOR
+# ============================================================================
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: selector-pvc
+  namespace: default
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: manual
+  
+  # Selector to bind to specific PV
+  selector:
+    matchLabels:
+      type: hostpath
+
+---
+# ============================================================================
+# PERSISTENT VOLUME CLAIM - DYNAMIC PROVISIONING
+# ============================================================================
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: dynamic-pvc
+  namespace: default
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  # Use dynamic storage class - PV is created automatically
+  storageClassName: local-storage
+
+---
+# ============================================================================
+# POD WITH PERSISTENT VOLUME CLAIM
+# ============================================================================
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pvc-pod
+  namespace: default
+spec:
+  containers:
+  - name: app
+    image: nginx:latest
+    
+    volumeMounts:
+    # Mount PVC into container
+    - name: data-volume
+      mountPath: /data
+    
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "100m"
+      limits:
+        memory: "256Mi"
+        cpu: "200m"
+  
+  volumes:
+  - name: data-volume
+    persistentVolumeClaim:
+      claimName: simple-pvc
+      readOnly: false
+
+---
+# ============================================================================
+# DEPLOYMENT WITH PERSISTENT VOLUME CLAIM
+# ============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: data-app-deployment
+  namespace: default
+spec:
+  replicas: 1  # PVC with RWO can only be mounted by 1 pod
+  
+  selector:
+    matchLabels:
+      app: data-app
+  
+  template:
+    metadata:
+      labels:
+        app: data-app
+    
+    spec:
+      containers:
+      - name: app
+        image: nginx:latest
+        
+        volumeMounts:
+        - name: data
+          mountPath: /data
+        
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+      
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: simple-pvc
+
+---
+# ============================================================================
+# STATEFULSET WITH PERSISTENT VOLUME CLAIMS
+# Each replica gets its own PVC automatically
+# ============================================================================
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: data-statefulset
+  namespace: default
+spec:
+  serviceName: data-service
+  replicas: 3
+  
+  selector:
+    matchLabels:
+      app: data-app
+  
+  template:
+    metadata:
+      labels:
+        app: data-app
+    
+    spec:
+      containers:
+      - name: app
+        image: nginx:latest
+        ports:
+        - containerPort: 80
+        
+        volumeMounts:
+        - name: data
+          mountPath: /data
+  
+  # VolumeClaimTemplates create PVC for each replica
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      storageClassName: manual
+      resources:
+        requests:
+          storage: 5Gi
+
+---
+# Headless Service for StatefulSet
+apiVersion: v1
+kind: Service
+metadata:
+  name: data-service
+  namespace: default
+spec:
+  clusterIP: None  # Headless service
+  selector:
+    app: data-app
+  ports:
+  - port: 80
+    targetPort: 80
+
+---
+# ============================================================================
+# POD WITH MULTIPLE VOLUMES
+# ============================================================================
+apiVersion: v1
+kind: Pod
+metadata:
+  name: multi-volume-pod
+  namespace: default
+spec:
+  containers:
+  - name: app
+    image: nginx:latest
+    
+    volumeMounts:
+    # PVC volume
+    - name: persistent-data
+      mountPath: /data/persistent
+    
+    # emptyDir volume
+    - name: temp-cache
+      mountPath: /data/cache
+    
+    # hostPath volume
+    - name: host-logs
+      mountPath: /var/log
+    
+    # ConfigMap volume
+    - name: config
+      mountPath: /etc/config
+    
+    # Secret volume
+    - name: secrets
+      mountPath: /etc/secrets
+  
+  volumes:
+  - name: persistent-data
+    persistentVolumeClaim:
+      claimName: simple-pvc
+  
+  - name: temp-cache
+    emptyDir:
+      sizeLimit: 2Gi
+  
+  - name: host-logs
+    hostPath:
+      path: /var/log
+      type: Directory
+  
+  - name: config
+    configMap:
+      name: literal-configmap
+  
+  - name: secrets
+    secret:
+      secretName: generic-secret
+
+---
+# ============================================================================
+# PVC WITH VOLUME EXPANSION (GrowOnly)
+# ============================================================================
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: expandable-pvc
+  namespace: default
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: local-storage  # Must have allowVolumeExpansion: true
+
+# To expand: kubectl patch pvc expandable-pvc -p '{"spec":{"resources":{"requests":{"storage":"10Gi"}}}}'
+
+---
+# ============================================================================
+# QUICK REFERENCE - STORAGE COMMANDS
+# ============================================================================
+# # Get Storage Classes
+# kubectl get storageclass
+# kubectl describe storageclass manual
+#
+# # Get Persistent Volumes
+# kubectl get pv
+# kubectl get pv -o wide
+# kubectl describe pv <pv-name>
+#
+# # Get Persistent Volume Claims
+# kubectl get pvc
+# kubectl get pvc -o wide
+# kubectl describe pvc <pvc-name>
+#
+# # Edit Storage
+# kubectl edit pv <pv-name>
+# kubectl edit pvc <pvc-name>
+# kubectl edit storageclass <class-name>
+#
+# # Delete PV (will block if PVC still uses it)
+# kubectl delete pv <pv-name>
+#
+# # Expand PVC (if storage class allows)
+# kubectl patch pvc <pvc-name> -p '{"spec":{"resources":{"requests":{"storage":"20Gi"}}}}'
+#
+# # Get PVC bound to Pod
+# kubectl get pod <pod-name> -o jsonpath='{.spec.volumes[*].persistentVolumeClaim.claimName}'

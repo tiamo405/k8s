@@ -1,0 +1,426 @@
+# ============================================================================
+# COMPREHENSIVE HPA (HORIZONTAL POD AUTOSCALER) EXAMPLES FOR CKAD EXAM
+# ============================================================================
+
+---
+# ============================================================================
+# DEPLOYMENT WITH RESOURCE REQUESTS (REQUIRED FOR HPA)
+# ============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hpa-test-deployment
+  namespace: default
+spec:
+  replicas: 2
+  
+  selector:
+    matchLabels:
+      app: hpa-app
+  
+  template:
+    metadata:
+      labels:
+        app: hpa-app
+    
+    spec:
+      containers:
+      - name: app
+        image: nginx:latest
+        ports:
+        - containerPort: 80
+        
+        # *** CRITICAL FOR HPA: MUST HAVE RESOURCE REQUESTS ***
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"          # 100 millicpus = 0.1 CPU
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+        
+        # Liveness and readiness probes
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 5
+          periodSeconds: 5
+
+---
+# ============================================================================
+# HPA V2 - CPU UTILIZATION (RECOMMENDED FOR CKAD)
+# ============================================================================
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: app-hpa-cpu
+  namespace: default
+spec:
+  # Target to scale
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: hpa-test-deployment
+  
+  # Min/max replicas
+  minReplicas: 2
+  maxReplicas: 10
+  
+  # Metrics for scaling (V2 allows multiple metrics)
+  metrics:
+  # CPU-based scaling (average CPU utilization)
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization        # Or AverageValue, Value
+        averageUtilization: 50   # Scale when avg CPU > 50%
+
+---
+# ============================================================================
+# HPA V2 - MEMORY-BASED SCALING
+# ============================================================================
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: app-hpa-memory
+  namespace: default
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: hpa-test-deployment
+  
+  minReplicas: 1
+  maxReplicas: 5
+  
+  metrics:
+  # Memory-based scaling
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80   # Scale when avg memory usage > 80%
+
+---
+# ============================================================================
+# HPA V2 - CPU AND MEMORY COMBINED
+# ============================================================================
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: app-hpa-combined
+  namespace: default
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: hpa-test-deployment
+  
+  minReplicas: 2
+  maxReplicas: 10
+  
+  # Scale based on multiple metrics (AND logic)
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+  
+  # Scale down slowly to avoid flapping
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300  # Wait 5 min before scaling down
+      policies:
+      - type: Percent
+        value: 50                       # Remove max 50% of pods
+        periodSeconds: 60
+
+---
+# ============================================================================
+# HPA V2 - CUSTOM METRICS (REQUIRES METRICS SERVER)
+# ============================================================================
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: app-hpa-custom
+  namespace: default
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: hpa-test-deployment
+  
+  minReplicas: 1
+  maxReplicas: 5
+  
+  metrics:
+  # Custom metric from application
+  - type: Pods
+    pods:
+      metric:
+        name: http_requests_per_second
+      target:
+        type: AverageValue
+        averageValue: "1000"            # Scale when metric > 1000
+
+---
+# ============================================================================
+# HPA V1 - DEPRECATED BUT SIMPLER (not recommended for CKAD)
+# kubectl autoscale deployment <name> --min=2 --max=10 --cpu-percent=50
+# ============================================================================
+apiVersion: autoscaling/v1
+kind: HorizontalPodAutoscaler
+metadata:
+  name: app-hpa-v1
+  namespace: default
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: hpa-test-deployment
+  
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 50
+
+---
+# ============================================================================
+# HPA WITH BEHAVIOR CUSTOMIZATION
+# ============================================================================
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: app-hpa-behavior
+  namespace: default
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: hpa-test-deployment
+  
+  minReplicas: 2
+  maxReplicas: 10
+  
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 50
+  
+  # Behavior customization
+  behavior:
+    # Scale up behavior
+    scaleUp:
+      stabilizationWindowSeconds: 0    # Scale up immediately
+      policies:
+      - type: Percent
+        value: 100                      # Double the pods (100% increase)
+        periodSeconds: 15
+      - type: Pods
+        value: 4                        # Or add 4 pods at a time
+        periodSeconds: 15
+      selectPolicy: Max                 # Use max of the two policies
+    
+    # Scale down behavior
+    scaleDown:
+      stabilizationWindowSeconds: 300  # Wait 5 min before scaling down
+      policies:
+      - type: Percent
+        value: 50                       # Remove half the pods
+        periodSeconds: 60
+      selectPolicy: Min                 # Use minimum (safest)
+
+---
+# ============================================================================
+# HPA WITH TARGET CPU IN ABSOLUTE VALUE (V2)
+# ============================================================================
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: app-hpa-absolute-cpu
+  namespace: default
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: hpa-test-deployment
+  
+  minReplicas: 1
+  maxReplicas: 5
+  
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: AverageValue           # Absolute value instead of percentage
+        averageValue: "250m"         # Average 250m per pod
+
+---
+# ============================================================================
+# STATEFULSET WITH HPA
+# ============================================================================
+apiVersion: v1
+kind: StatefulSet
+metadata:
+  name: stateful-hpa-app
+  namespace: default
+spec:
+  serviceName: stateful-service
+  replicas: 2
+  
+  selector:
+    matchLabels:
+      app: stateful-app
+  
+  template:
+    metadata:
+      labels:
+        app: stateful-app
+    
+    spec:
+      containers:
+      - name: app
+        image: nginx:latest
+        
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "128Mi"
+          limits:
+            cpu: "200m"
+            memory: "256Mi"
+
+---
+# HPA for StatefulSet
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: stateful-hpa
+  namespace: default
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: StatefulSet
+    name: stateful-hpa-app
+  
+  minReplicas: 2
+  maxReplicas: 8
+  
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 60
+
+---
+# ============================================================================
+# HPA FOR JOB (CAN'T SCALE JOB TO 0)
+# ============================================================================
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: job-hpa
+  namespace: default
+spec:
+  scaleTargetRef:
+    apiVersion: batch/v1
+    kind: Job
+    name: batch-job
+  
+  minReplicas: 1
+  maxReplicas: 100
+  
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 80
+
+---
+# ============================================================================
+# QUICK REFERENCE - HPA COMMANDS
+# ============================================================================
+# # Create HPA from command line
+# kubectl autoscale deployment <deployment-name> \
+#   --min=2 --max=10 --cpu-percent=50 \
+#   --dry-run=client -o yaml > hpa.yaml
+#
+# # Get HPA status
+# kubectl get hpa
+# kubectl get hpa -o wide
+# kubectl describe hpa <hpa-name>
+#
+# # View HPA metrics and current load
+# kubectl top pods
+# kubectl top nodes
+#
+# # View HPA metrics detail
+# kubectl get hpa <hpa-name> -o jsonpath='{.status}'
+#
+# # Edit HPA
+# kubectl edit hpa <hpa-name>
+#
+# # Delete HPA
+# kubectl delete hpa <hpa-name>
+#
+# # Manual scaling (HPA will override if active)
+# kubectl scale deployment <name> --replicas=5
+#
+# # Watch HPA scaling in real-time
+# kubectl get hpa <hpa-name> -w
+#
+# # Check if metrics-server is running (required for HPA)
+# kubectl get deployment metrics-server -n kube-system
+
+---
+# ============================================================================
+# COMMON HPA ISSUES FOR CKAD EXAM
+# ============================================================================
+# 1. CRITICAL: Pod must have resource REQUESTS defined
+#    - Without requests, HPA cannot calculate utilization
+#    - Requests define the baseline for percentage calculation
+#
+# 2. Metrics not available:
+#    - metrics-server must be installed in cluster
+#    - May take 1-2 minutes for metrics to appear
+#
+# 3. HPA not scaling:
+#    - Check: kubectl describe hpa <name>
+#    - Look for "unknown" in CurrentCPUUtilizationPercentage
+#    - Ensure readiness probes pass (pods must be Ready)
+#
+# 4. Desired replicas != current replicas:
+#    - Check deployment status: kubectl describe deploy
+#    - May be waiting for pod creation
+#
+# 5. Best practices:
+#    - Use V2 API (autoscaling/v2)
+#    - Define both CPU and memory metrics
+#    - Set reasonable min/max replicas
+#    - Configure behavior (scale up fast, down slow)

@@ -1,0 +1,320 @@
+# ============================================================================
+# COMPREHENSIVE DEPLOYMENT EXAMPLE FOR CKAD EXAM
+# Includes: ConfigMap, Secret, all Volume types, Probes, Resources, Replicas
+# ============================================================================
+
+---
+# ConfigMap for storing configuration data
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  namespace: default
+data:
+  database-url: "postgresql://db-service:5432/mydb"
+  app-name: "MyCKADApp"
+  log-level: "INFO"
+  config.xml: |
+    <config>
+      <database>postgres</database>
+      <port>5432</port>
+    </config>
+
+---
+# Secret for storing sensitive data (base64 encoded)
+apiVersion: v1
+kind: Secret
+metadata:
+  name: app-secret
+  namespace: default
+type: Opaque
+data:
+  db-password: cGFzc3dvcmQxMjM=  # base64(password123)
+  api-key: c2VjcmV0a2V5YWJjZGVmZ2hpamtsbW4=  # base64(secretkeyabcdefghijklmn)
+stringData:
+  db-username: admin
+
+---
+# PersistentVolume - Prerequisite for PVC
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: app-pv
+spec:
+  capacity:
+    storage: 10Gi
+  volumeMode: Filesystem
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: manual
+  hostPath:
+    path: /mnt/data
+
+---
+# PersistentVolumeClaim
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: app-pvc
+  namespace: default
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: manual
+
+---
+# ============================================================================
+# COMPREHENSIVE DEPLOYMENT WITH ALL VOLUME TYPES
+# ============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app-deployment
+  namespace: default
+  labels:
+    app: myapp
+    version: v1
+spec:
+  # Deployment configuration
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+
+  # Pod selector
+  selector:
+    matchLabels:
+      app: myapp
+
+  # Pod template
+  template:
+    metadata:
+      labels:
+        app: myapp
+        version: v1
+      annotations:
+        description: "Production deployment with all volume types"
+    spec:
+      # Service Account (optional)
+      serviceAccountName: default
+      
+      # Init containers - run before app containers
+      initContainers:
+      - name: init-config
+        image: busybox:latest
+        command: ['sh', '-c', 'echo "Initializing..." && mkdir -p /tmp/data']
+        volumeMounts:
+        - name: emptydir-volume
+          mountPath: /tmp/data
+
+      # Main containers
+      containers:
+      - name: app-container
+        image: nginx:latest
+        imagePullPolicy: IfNotPresent
+        
+        # Port configuration
+        ports:
+        - name: http
+          containerPort: 80
+          protocol: TCP
+        - name: https
+          containerPort: 443
+          protocol: TCP
+        
+        # ====== ENVIRONMENT VARIABLES ======
+        env:
+        # From literal values
+        - name: APP_NAME
+          value: "MyCKADApp"
+        - name: ENVIRONMENT
+          value: "production"
+        
+        # From ConfigMap
+        - name: DATABASE_URL
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: database-url
+        - name: LOG_LEVEL
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: log-level
+        
+        # From Secret
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: app-secret
+              key: db-password
+        - name: DB_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: app-secret
+              key: db-username
+        
+        # From Pod metadata (downwardAPI)
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        - name: POD_LABELS
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.labels['app']
+        
+        # Resource limits and requests (REQUIRED for HPA to work!)
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        
+        # ====== PROBES ======
+        # Startup Probe - checks if app started successfully
+        startupProbe:
+          httpGet:
+            path: /health/startup
+            port: http
+          failureThreshold: 30 # số lần thử trước khi coi là failed
+          periodSeconds: 10 # thời gian giữa các lần thử
+          timeoutSeconds: 3 # thời gian chờ trước khi coi là failed
+        
+        # Liveness Probe - restart if container is dead
+        livenessProbe:
+          httpGet:
+            path: /health/live
+            port: http
+          initialDelaySeconds: 10 # thời gian chờ trước khi bắt đầu kiểm tra
+          periodSeconds: 10 # thời gian giữa các lần thử
+          timeoutSeconds: 3 # thời gian chờ trước khi coi là failed
+          failureThreshold: 3 # số lần thử trước khi coi là failed
+        
+        # Readiness Probe - don't send traffic if not ready
+        readinessProbe:
+          httpGet:
+            path: /health/ready
+            port: http
+          initialDelaySeconds: 5 # thời gian chờ trước khi bắt đầu kiểm tra
+          periodSeconds: 5 # thời gian giữa các lần thử
+          timeoutSeconds: 2 # thời gian chờ trước khi coi là failed
+          failureThreshold: 2 # số lần thử trước khi coi là failed
+
+        # ====== ALL VOLUME MOUNTS ======
+        volumeMounts:
+        # 1. emptyDir - temporary storage (lost when pod terminates)
+        - name: emptydir-volume
+          mountPath: /tmp/data
+        
+        # 2. hostPath - mount from node filesystem
+        - name: hostpath-volume
+          mountPath: /var/log/app
+        
+        # 3. ConfigMap volume - read-only config files
+        - name: configmap-volume
+          mountPath: /etc/config
+          readOnly: true
+        
+        # 4. Secret volume - read-only sensitive data
+        - name: secret-volume
+          mountPath: /etc/secrets
+          readOnly: true
+        
+        # 5. PersistentVolumeClaim - persistent storage
+        - name: pvc-volume
+          mountPath: /data
+        
+        # 6. Downward API - pod info as files
+        - name: downward-volume
+          mountPath: /etc/podinfo
+        
+        # Security and other settings
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          readOnlyRootFilesystem: false
+
+      # ====== ALL VOLUMES ======
+      volumes:
+      # 1. emptyDir - temporary storage (node-local)
+      - name: emptydir-volume
+        emptyDir:
+          sizeLimit: "1Gi"
+      
+      # 2. hostPath - mount from node filesystem
+      - name: hostpath-volume
+        hostPath:
+          path: /var/log
+          type: DirectoryOrCreate
+      
+      # 3. ConfigMap volume - read entire ConfigMap as volume
+      - name: configmap-volume
+        configMap:
+          name: app-config
+          defaultMode: 0644
+      
+      # 4. Secret volume - read entire Secret as volume
+      - name: secret-volume
+        secret:
+          secretName: app-secret
+          defaultMode: 0600
+      
+      # 5. PersistentVolumeClaim - persistent storage
+      - name: pvc-volume
+        persistentVolumeClaim:
+          claimName: app-pvc
+      
+      # 6. Downward API - pod metadata as files
+      - name: downward-volume
+        downwardAPI:
+          items:
+          - path: "labels"
+            fieldRef:
+              fieldPath: metadata.labels
+          - path: "annotations"
+            fieldRef:
+              fieldPath: metadata.annotations
+          - path: "cpu-limit"
+            resourceFieldRef:
+              containerName: app-container
+              resource: limits.cpu
+          - path: "memory-limit"
+            resourceFieldRef:
+              containerName: app-container
+              resource: limits.memory
+
+      # Node affinity (optional)
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            preference:
+              matchExpressions:
+              - key: disk
+                operator: In
+                values:
+                - ssd
+
+      # Pod disruption budget (optional)
+      terminationGracePeriodSeconds: 30

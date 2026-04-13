@@ -1,0 +1,467 @@
+# ============================================================================
+# COMPREHENSIVE STATEFULSET EXAMPLES FOR CKAD EXAM
+# Includes: Ordered pod names, stable network identities, persistent storage
+# ============================================================================
+
+---
+# ============================================================================
+# HEADLESS SERVICE (REQUIRED FOR STATEFULSET)
+# ============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql-service
+  namespace: default
+  labels:
+    app: mysql
+spec:
+  # Headless service - no cluster IP
+  clusterIP: None
+  
+  # Service label selector
+  selector:
+    app: mysql
+  
+  # Ports
+  ports:
+  - name: mysql
+    port: 3306
+    targetPort: 3306
+  - name: replication
+    port: 3307
+    targetPort: 3307
+
+---
+# ============================================================================
+# BASIC STATEFULSET
+# ============================================================================
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mysql-statefulset
+  namespace: default
+spec:
+  # Service name (must exist and be headless)
+  serviceName: mysql-service
+  
+  # Replicas
+  replicas: 3
+  
+  # Pod selector
+  selector:
+    matchLabels:
+      app: mysql
+  
+  # Pod template
+  template:
+    metadata:
+      labels:
+        app: mysql
+    
+    spec:
+      containers:
+      - name: mysql
+        image: mysql:5.7
+        
+        ports:
+        - name: mysql
+          containerPort: 3306
+        - name: replication
+          containerPort: 3307
+        
+        # Environment variables
+        env:
+        - name: MYSQL_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mysql-secret
+              key: root-password
+        - name: MYSQL_REPLICATION_USER
+          value: replicator
+        - name: MYSQL_REPLICATION_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mysql-secret
+              key: replication-password
+        
+        # Probes
+        livenessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - mysqladmin ping -uroot -p${MYSQL_ROOT_PASSWORD}
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        
+        readinessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - mysqladmin ping -uroot -p${MYSQL_ROOT_PASSWORD}
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        
+        # Resources
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        
+        # Volume mounts
+        volumeMounts:
+        - name: mysql-data
+          mountPath: /var/lib/mysql
+        - name: mysql-config
+          mountPath: /etc/mysql/conf.d
+  
+  # Traditional volumes
+  volumes:
+  - name: mysql-config
+    configMap:
+      name: mysql-config
+
+  # Volumed Claim Templates (creates PVC for each pod)
+  volumeClaimTemplates:
+  - metadata:
+      name: mysql-data
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      storageClassName: standard
+      resources:
+        requests:
+          storage: 20Gi
+
+---
+# ============================================================================
+# STATEFULSET WITH PERSISTENT STORAGE
+# ============================================================================
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgresql-statefulset
+  namespace: default
+spec:
+  serviceName: postgresql-service
+  replicas: 3
+  
+  selector:
+    matchLabels:
+      app: postgresql
+  
+  template:
+    metadata:
+      labels:
+        app: postgresql
+    
+    spec:
+      containers:
+      - name: postgresql
+        image: postgres:13
+        
+        ports:
+        - name: postgresql
+          containerPort: 5432
+        
+        env:
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: password
+        - name: POSTGRES_DB
+          value: "mydb"
+        - name: POSTGRES_USER
+          value: "postgres"
+        - name: PGDATA
+          value: /var/lib/postgresql/data/pgdata
+        
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        
+        volumeMounts:
+        - name: data
+          mountPath: /var/lib/postgresql/data
+  
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      storageClassName: fast-ssd
+      resources:
+        requests:
+          storage: 50Gi
+
+---
+# ============================================================================
+# STATEFULSET WITH INIT CONTAINER
+# ============================================================================
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: web-statefulset
+  namespace: default
+spec:
+  serviceName: web-service
+  replicas: 3
+  
+  selector:
+    matchLabels:
+      app: web
+  
+  template:
+    metadata:
+      labels:
+        app: web
+    
+    spec:
+      # Init container - runs before main container
+      initContainers:
+      - name: init-setup
+        image: busybox:latest
+        command: ['sh', '-c']
+        args:
+        - |
+          echo "Pod ordinal: $(hostname -s | sed 's/.*-//')"
+          mkdir -p /app/data
+          echo "Initialized at $(date)" > /app/data/init.log
+        
+        volumeMounts:
+        - name: shared-volume
+          mountPath: /app/data
+      
+      containers:
+      - name: app
+        image: nginx:latest
+        
+        ports:
+        - containerPort: 80
+        
+        # Use pod ordinal in environment
+        env:
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        
+        volumeMounts:
+        - name: shared-volume
+          mountPath: /app/data
+  
+  volumeClaimTemplates:
+  - metadata:
+      name: shared-volume
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      storageClassName: standard
+      resources:
+        requests:
+          storage: 10Gi
+
+---
+# ============================================================================
+# STATEFULSET WITH UPDATE STRATEGY
+# ============================================================================
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: cassandra-statefulset
+  namespace: default
+spec:
+  serviceName: cassandra-service
+  replicas: 3
+  
+  # Update strategy for StatefulSet
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      partition: 1  # Only pods with index >= partition are updated
+  
+  selector:
+    matchLabels:
+      app: cassandra
+  
+  template:
+    metadata:
+      labels:
+        app: cassandra
+    
+    spec:
+      containers:
+      - name: cassandra
+        image: cassandra:3.11
+        
+        ports:
+        - name: cql
+          containerPort: 9042
+        - name: thrift
+          containerPort: 9160
+        - name: jmx
+          containerPort: 7199
+        
+        env:
+        - name: CASSANDRA_SEEDS
+          value: "cassandra-statefulset-0.cassandra-service"
+        - name: CASSANDRA_CLUSTER_NAME
+          value: "K8s Cluster"
+        - name: CASSANDRA_DC
+          value: "dc1"
+        - name: CASSANDRA_RACK
+          value: "rack1"
+        
+        resources:
+          requests:
+            memory: "2Gi"
+            cpu: "1000m"
+          limits:
+            memory: "4Gi"
+            cpu: "2000m"
+        
+        volumeMounts:
+        - name: cassandra-data
+          mountPath: /var/lib/cassandra
+  
+  volumeClaimTemplates:
+  - metadata:
+      name: cassandra-data
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      storageClassName: fast-storage
+      resources:
+        requests:
+          storage: 100Gi
+
+---
+# ============================================================================
+# SERVICELESS STATEFULSET (NO HEADLESS SERVICE)
+# Pod names are still ordered but no DNS entries
+# ============================================================================
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: worker-statefulset
+  namespace: default
+spec:
+  serviceName: ""  # Empty - no service
+  replicas: 5
+  
+  selector:
+    matchLabels:
+      app: worker
+  
+  template:
+    metadata:
+      labels:
+        app: worker
+    
+    spec:
+      containers:
+      - name: worker
+        image: worker:latest
+        
+        env:
+        - name: WORKER_ID
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+
+---
+# ============================================================================
+# POD IDENTITY IN STATEFULSET
+# ============================================================================
+# StatefulSet pods have guaranteed identity:
+# Pod Name Pattern: <statefulset-name>-<ordinal>
+# Examples:
+# - mysql-statefulset-0
+# - mysql-statefulset-1
+# - mysql-statefulset-2
+#
+# DNS Name (with headless service):
+# <pod-name>.<service-name>.<namespace>.svc.cluster.local
+# Example: mysql-statefulset-0.mysql-service.default.svc.cluster.local
+#
+# Ordinal Index:
+# Pods are ordained from 0 to replicas-1
+
+---
+# ============================================================================
+# STATEFULSET VS DEPLOYMENT KEY DIFFERENCES
+# ============================================================================
+# DEPLOYMENT:
+# - No guaranteed pod identity
+# - Pod names are random (random hash suffix)
+# - Good for stateless apps
+# - Faster scaling (no ordering)
+# - Any pod can be deleted/recreated
+#
+# STATEFULSET:
+# - Guaranteed stable pod identity
+# - Pod names are ordered: app-0, app-1, app-2...
+# - Good for stateful apps (databases, queues)
+# - Ordered scaling (one at a time, in order)
+# - Persistent storage linked to pod identity
+# - Stable DNS names (with headless service)
+# - Graceful termination (ordinal order)
+
+---
+# ============================================================================
+# QUICK REFERENCE - STATEFULSET COMMANDS
+# ============================================================================
+# # Create StatefulSet from command line
+# kubectl create statefulset web --image=nginx \
+#   --replicas=3 --dry-run=client -o yaml > statefulset.yaml
+#
+# # Get StatefulSets
+# kubectl get statefulset
+# kubectl get sts  # Short form
+# kubectl get sts -o wide
+# kubectl describe sts <name>
+#
+# # View pods created by StatefulSet (ordered names)
+# kubectl get pods -l app=web --sort-by=.metadata.name
+#
+# # Scale StatefulSet
+# kubectl scale statefulset <name> --replicas=5
+# kubectl patch sts <name> -p '{"spec":{"replicas":5}}'
+#
+# # Get DNS name of pod
+# kubectl get pod <pod-name> -o jsonpath='{.status.podIP}'
+# nslookup <pod-name>.<service-name>.<namespace>.svc.cluster.local
+#
+# # Test DNS from pod
+# kubectl exec -it <pod-name> -- nslookup ...
+#
+# # Delete StatefulSet (keeps PVCs by default)
+# kubectl delete sts <name>
+#
+# # Delete with cascade (delete pods too)
+# kubectl delete sts <name> --cascade=background
+#
+# # Edit StatefulSet
+# kubectl edit sts <name>
+#
+# # Watch StatefulSet scaling
+# kubectl get sts <name> -w
+#
+# # View PVCs created by StatefulSet
+# kubectl get pvc
+# # PVC names: <volumeClaimTemplate-name>-<pod-name>
+# # Example: data-postgres-statefulset-0

@@ -1,0 +1,357 @@
+# ============================================================================
+# COMPREHENSIVE PROBES EXAMPLES FOR CKAD EXAM
+# Includes: Liveness, Readiness, Startup probes with HTTP, TCP, EXEC
+# ============================================================================
+
+---
+# ============================================================================
+# POD WITH HTTP PROBES (MOST COMMON)
+# ============================================================================
+apiVersion: v1
+kind: Pod
+metadata:
+  name: http-probes-pod
+  namespace: default
+spec:
+  containers:
+  - name: app
+    image: nginx:latest
+    ports:
+    - name: http
+      containerPort: 80
+    
+    # Startup Probe - for slowly starting apps (runs before liveness/readiness)
+    startupProbe:
+      httpGet:
+        path: /health/startup  # Endpoint to check
+        port: http             # By name or number
+        httpHeaders:
+        - name: X-Custom-Header
+          value: health-check
+      initialDelaySeconds: 0    # Start checking immediately
+      periodSeconds: 10         # Check every 10 seconds
+      timeoutSeconds: 3         # Wait 3 seconds for response
+      failureThreshold: 30      # Fail after 30 failed checks (app has 300s to start)
+      successThreshold: 1       # Success after 1 successful check
+    
+    # Liveness Probe - restart container if not responsive
+    livenessProbe:
+      httpGet:
+        path: /health/live
+        port: http
+      initialDelaySeconds: 10   # Wait 10s before first check
+      periodSeconds: 10         # Check every 10 seconds
+      timeoutSeconds: 3         # Wait 3 seconds for response
+      failureThreshold: 3       # Fail after 3 failed checks
+      successThreshold: 1       # Success after 1 successful check
+    
+    # Readiness Probe - don't send traffic if not ready
+    readinessProbe:
+      httpGet:
+        path: /health/ready
+        port: http
+      initialDelaySeconds: 5    # Wait 5s before first check
+      periodSeconds: 5          # Check every 5 seconds
+      timeoutSeconds: 2         # Wait 2 seconds for response
+      failureThreshold: 2       # Fail after 2 failed checks
+      successThreshold: 1
+
+---
+# ============================================================================
+# POD WITH TCP SOCKET PROBES
+# ============================================================================
+apiVersion: v1
+kind: Pod
+metadata:
+  name: tcp-probes-pod
+  namespace: default
+spec:
+  containers:
+  - name: app
+    image: busybox:latest
+    command: ['nc', '-l', '-p', '8080']  # Listen on port 8080
+    
+    # TCP Liveness Probe - check if port is open
+    livenessProbe:
+      tcpSocket:
+        port: 8080             # Can use port number or name
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      timeoutSeconds: 1        # TCP probes usually quick
+      failureThreshold: 3
+    
+    # TCP Readiness Probe
+    readinessProbe:
+      tcpSocket:
+        port: 8080
+      initialDelaySeconds: 5
+      periodSeconds: 5
+      timeoutSeconds: 1
+      failureThreshold: 2
+
+---
+# ============================================================================
+# POD WITH EXEC PROBES (COMMAND EXECUTION)
+# ============================================================================
+apiVersion: v1
+kind: Pod
+metadata:
+  name: exec-probes-pod
+  namespace: default
+spec:
+  containers:
+  - name: app
+    image: busybox:latest
+    command: ['/bin/sh']
+    args: ['-c', 'while true; do echo "healthy" > /tmp/healthy && sleep 10; done']
+    
+    # Exec Liveness Probe - run command inside container
+    livenessProbe:
+      exec:
+        command:
+        - /bin/sh
+        - -c
+        - test -f /tmp/healthy  # Check if file exists
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      timeoutSeconds: 3        # How long to wait for command to complete
+      failureThreshold: 3      # Exit code 0 = success, non-zero = failure
+    
+    # Exec Readiness Probe
+    readinessProbe:
+      exec:
+        command:
+        - /bin/sh
+        - -c
+        - cat /tmp/healthy      # Read file content (exit 0 if exists)
+      initialDelaySeconds: 5
+      periodSeconds: 5
+      timeoutSeconds: 2
+      failureThreshold: 2
+    
+    volumeMounts:
+    - name: health-check
+      mountPath: /tmp
+  
+  volumes:
+  - name: health-check
+    emptyDir: {}
+
+---
+# ============================================================================
+# POD WITH STARTUP PROBE (SLOW STARTING APP)
+# ============================================================================
+apiVersion: v1
+kind: Pod
+metadata:
+  name: slow-startup-pod
+  namespace: default
+spec:
+  containers:
+  - name: app
+    image: busybox:latest
+    command: ['/bin/sh']
+    args: ['-c', 'sleep 60 && while true; do echo ok > /tmp/ready && sleep 10; done']
+    
+    # Startup Probe - for apps that take long to start
+    startupProbe:
+      exec:
+        command:
+        - /bin/sh
+        - -c
+        - test -f /tmp/ready
+      failureThreshold: 60    # 60 * 5 = 300 seconds max startup time
+      periodSeconds: 5
+    
+    # Liveness Probe - only starts checking after startup probe succeeds
+    livenessProbe:
+      exec:
+        command:
+        - /bin/sh
+        - -c
+        - test -f /tmp/ready
+      periodSeconds: 10
+      failureThreshold: 3
+    
+    # Readiness Probe
+    readinessProbe:
+      exec:
+        command:
+        - /bin/sh
+        - -c
+        - test -f /tmp/ready
+      periodSeconds: 5
+      failureThreshold: 1
+    
+    volumeMounts:
+    - name: startup
+      mountPath: /tmp
+  
+  volumes:
+  - name: startup
+    emptyDir: {}
+
+---
+# ============================================================================
+# DEPLOYMENT WITH DIFFERENT PROBE TYPES FOR DIFFERENT CONTAINERS
+# ============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: multi-container-probes-deployment
+  namespace: default
+spec:
+  replicas: 2
+  
+  selector:
+    matchLabels:
+      app: probes-app
+  
+  template:
+    metadata:
+      labels:
+        app: probes-app
+    
+    spec:
+      containers:
+      # Main app container with HTTP probes
+      - name: app
+        image: nginx:latest
+        ports:
+        - containerPort: 80
+        
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          failureThreshold: 3
+        
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          failureThreshold: 2
+        
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+      
+      # Sidecar container with TCP probe
+      - name: cache
+        image: redis:latest
+        ports:
+        - containerPort: 6379
+        
+        livenessProbe:
+          tcpSocket:
+            port: 6379
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          failureThreshold: 3
+        
+        readinessProbe:
+          tcpSocket:
+            port: 6379
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          failureThreshold: 2
+        
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+
+---
+# ============================================================================
+# PROBE PARAMETERS REFERENCE
+# ============================================================================
+# initialDelaySeconds: Delay before first probe (sec)
+# periodSeconds: How often to probe (sec) - default 10
+# timeoutSeconds: Timeout for probe response (sec) - default 1
+# failureThreshold: Consecutive failures to mark unhealthy - default 3
+# successThreshold: Consecutive successes to mark healthy - default 1
+#
+# Probe response:
+# - Exit code 0 (for exec): Success
+# - Non-zero: Failure
+# - HTTP 200-399: Success
+# - Other HTTP codes: Failure
+#
+# When startup probe is present:
+# - Runs until successful or fails failureThreshold times
+# - During startup probe, liveness/readiness are disabled
+# - After startup succeeds, liveness/readiness probes run
+
+---
+# ============================================================================
+# PROBE ACTION TYPES
+# ============================================================================
+# 1. HTTP GET - Most common
+#    httpGet:
+#      path: /health
+#      port: 8080
+#      host: localhost (optional)
+#      scheme: HTTP (or HTTPS)
+#      httpHeaders: (optional)
+#      - name: X-Header
+#        value: value
+#
+# 2. TCP Socket - For non-HTTP services
+#    tcpSocket:
+#      port: 5432
+#      host: localhost (optional)
+#
+# 3. EXEC - Run command
+#    exec:
+#      command:
+#      - /bin/sh
+#      - -c
+#      - test -f /tmp/healthy
+
+---
+# ============================================================================
+# PROBE BEST PRACTICES FOR CKAD
+# ============================================================================
+# 1. Always define readiness probe (prevent traffic to unready pods)
+# 2. Always define liveness probe (restart dead containers)
+# 3. Use startup probe for slowly starting apps
+# 4. Set appropriate initialDelaySeconds for app startup time
+# 5. Make probes endpoints lightweight (avoid heavy checks)
+# 6. Use HTTP GET when possible (simpler, more reliable)
+# 7. Ensure probe endpoint responds quickly
+# 8. Set reasonable failureThreshold (too low = unnecessary restarts)
+# 9. Monitor probe behavior: kubectl describe pod <name>
+# 10. Test probes: kubectl logs <pod> to see probe failures
+
+---
+# ============================================================================
+# QUICK REFERENCE - PROBE COMMANDS
+# ============================================================================
+# # View probe status
+# kubectl describe pod <pod-name>
+#
+# # View pod events (shows probe failures)
+# kubectl get events
+#
+# # Log probe execution (if app logs them)
+# kubectl logs <pod-name>
+#
+# # Port forward to test probe endpoint locally
+# kubectl port-forward <pod-name> 8080:80
+#
+# # Check readiness
+# kubectl get pod <pod-name> -o jsonpath='{.status.conditions[?(@.type=="Ready")]}'
+#
+# # Check container ready status
+# kubectl get pod <pod-name> -o jsonpath='{.status.containerStatuses[].ready}'

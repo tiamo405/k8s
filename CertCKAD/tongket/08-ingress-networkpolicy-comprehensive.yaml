@@ -1,0 +1,516 @@
+# ============================================================================
+# COMPREHENSIVE INGRESS AND NETWORKPOLICY EXAMPLES FOR CKAD EXAM
+# ============================================================================
+
+---
+# ============================================================================
+# SIMPLE INGRESS - SINGLE BACKEND
+# ============================================================================
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: simple-ingress
+  namespace: default
+spec:
+  # Ingress class (controller type)
+  ingressClassName: nginx
+  
+  # Default backend (catch-all)
+  defaultBackend:
+    service:
+      name: default-service
+      port:
+        number: 80
+
+---
+# ============================================================================
+# INGRESS WITH PATH-BASED ROUTING
+# ============================================================================
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: path-ingress
+  namespace: default
+  annotations:
+    kubernetes.io/ingress.class: nginx
+spec:
+  ingressClassName: nginx
+  
+  rules:
+  - host: api.example.com
+    http:
+      paths:
+      # /api/* routes to api service
+      - path: /api
+        pathType: Prefix
+        backend:
+          service:
+            name: api-service
+            port:
+              number: 8080
+      
+      # /web/* routes to web service
+      - path: /web
+        pathType: Prefix
+        backend:
+          service:
+            name: web-service
+            port:
+              number: 3000
+      
+      # Exact path match
+      - path: /health
+        pathType: Exact
+        backend:
+          service:
+            name: health-service
+            port:
+              number: 8000
+
+---
+# ============================================================================
+# INGRESS WITH HOST-BASED ROUTING (VIRTUAL HOSTS)
+# ============================================================================
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: host-ingress
+  namespace: default
+spec:
+  ingressClassName: nginx
+  
+  rules:
+  # app1.example.com
+  - host: app1.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: app1-service
+            port:
+              number: 80
+  
+  # app2.example.com
+  - host: app2.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: app2-service
+            port:
+              number: 80
+  
+  # Default for all other hosts (if configured)
+  - host: "*.example.com"
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: default-service
+            port:
+              number: 80
+
+---
+# ============================================================================
+# INGRESS WITH TLS/HTTPS
+# ============================================================================
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: tls-ingress
+  namespace: default
+spec:
+  ingressClassName: nginx
+  
+  # TLS configuration
+  tls:
+  - hosts:
+    - secure.example.com
+    - api.example.com
+    secretName: tls-secret  # Secret containing cert and key
+  
+  - hosts:
+    - app.example.com
+    secretName: app-tls-secret
+  
+  rules:
+  - host: secure.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: secure-service
+            port:
+              number: 443
+  
+  - host: api.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: api-service
+            port:
+              number: 8443
+
+---
+# ============================================================================
+# INGRESS WITH ANNOTATIONS
+# ============================================================================
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: annotated-ingress
+  namespace: default
+  annotations:
+    # NGINX-specific annotations
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/rate-limit: "100"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "https://example.com"
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    
+    # General annotations
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    kubernetes.io/ingress.class: nginx
+spec:
+  ingressClassName: nginx
+  
+  rules:
+  - host: app.example.com
+    http:
+      paths:
+      - path: /new
+        pathType: Prefix
+        backend:
+          service:
+            name: app-service
+            port:
+              number: 80
+
+---
+# ============================================================================
+# NETWORKPOLICY - DENY ALL TRAFFIC (DEFAULT DENY)
+# ============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: default
+spec:
+  podSelector: {}  # Applies to all pods in namespace
+  
+  # No ingress rules = deny all incoming traffic
+  policyTypes:
+  - Ingress
+  - Egress
+
+---
+# ============================================================================
+# NETWORKPOLICY - ALLOW SPECIFIC INGRESS
+# ============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-from-label
+  namespace: default
+spec:
+  # Apply to pods with label app=backend
+  podSelector:
+    matchLabels:
+      app: backend
+  
+  policyTypes:
+  - Ingress
+  
+  # Allow ingress rules
+  ingress:
+  # Allow traffic from pods with label app=frontend
+  - from:
+    - podSelector:
+        matchLabels:
+          app: frontend
+    ports:
+    - protocol: TCP
+      port: 8080
+
+---
+# ============================================================================
+# NETWORKPOLICY - ALLOW SPECIFIC EGRESS
+# ============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-egress-to-db
+  namespace: default
+spec:
+  podSelector:
+    matchLabels:
+      app: frontend
+  
+  policyTypes:
+  - Egress
+  
+  egress:
+  # Allow egress to pods with label app=database
+  - to:
+    - podSelector:
+        matchLabels:
+          app: database
+    ports:
+    - protocol: TCP
+      port: 5432
+  
+  # Allow DNS (required for hostname resolution)
+  - to:
+    - podSelector:
+        matchLabels:
+          k8s-app: kube-dns
+    ports:
+    - protocol: UDP
+      port: 53
+
+---
+# ============================================================================
+# NETWORKPOLICY - ALLOW INGRESS FROM NAMESPACE
+# ============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-from-namespace
+  namespace: production
+spec:
+  podSelector:
+    matchLabels:
+      tier: web
+  
+  policyTypes:
+  - Ingress
+  
+  ingress:
+  # Allow from all pods in monitoring namespace
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: monitoring
+    ports:
+    - protocol: TCP
+      port: 80
+
+---
+# ============================================================================
+# NETWORKPOLICY - COMBINED INGRESS AND EGRESS
+# ============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: web-tier-policy
+  namespace: default
+spec:
+  podSelector:
+    matchLabels:
+      tier: web
+  
+  policyTypes:
+  - Ingress
+  - Egress
+  
+  # Ingress: allow from load balancer and ingress controller
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: ingress-nginx
+    ports:
+    - protocol: TCP
+      port: 80
+    - protocol: TCP
+      port: 443
+  
+  # Egress: allow to database and external DNS
+  egress:
+  # To database pods
+  - to:
+    - podSelector:
+        matchLabels:
+          tier: database
+    ports:
+    - protocol: TCP
+      port: 5432
+  
+  # To DNS server (kube-dns)
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: kube-system
+    - podSelector:
+        matchLabels:
+          k8s-app: kube-dns
+    ports:
+    - protocol: UDP
+      port: 53
+
+---
+# ============================================================================
+# NETWORKPOLICY - WITH IPBLOCK (CIDR)
+# ============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-from-cidr
+  namespace: default
+spec:
+  podSelector:
+    matchLabels:
+      app: api
+  
+  policyTypes:
+  - Ingress
+  - Egress
+  
+  ingress:
+  # Allow from specific CIDR blocks
+  - from:
+    - ipBlock:
+        cidr: 192.168.0.0/16
+        except:
+        - 192.168.1.0/24  # Except this subnet
+    ports:
+    - protocol: TCP
+      port: 8080
+
+---
+# ============================================================================
+# NETWORKPOLICY - MULTI-CONDITION (AND LOGIC)
+# ============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: multi-condition-policy
+  namespace: default
+spec:
+  podSelector:
+    matchLabels:
+      app: database
+  
+  policyTypes:
+  - Ingress
+  
+  ingress:
+  # Allow from backend pods in production namespace
+  # (multiple conditions in same rule = AND logic)
+  - from:
+    - podSelector:
+        matchLabels:
+          app: backend
+    - namespaceSelector:
+        matchLabels:
+          environment: production
+    ports:
+    - protocol: TCP
+      port: 5432
+
+---
+# ============================================================================
+# SERVICES SUPPORTING THE POLICIES (FOR REFERENCE)
+# ============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend-service
+  namespace: default
+spec:
+  type: ClusterIP
+  selector:
+    app: frontend
+  ports:
+  - port: 80
+    targetPort: 80
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend-service
+  namespace: default
+spec:
+  type: ClusterIP
+  selector:
+    app: backend
+  ports:
+  - port: 8080
+    targetPort: 8080
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: database-service
+  namespace: default
+spec:
+  type: ClusterIP
+  selector:
+    app: database
+  ports:
+  - port: 5432
+    targetPort: 5432
+
+---
+# ============================================================================
+# QUICK REFERENCE - INGRESS COMMANDS
+# ============================================================================
+# # Create Ingress from command line
+# kubectl create ingress web-ingress --rule="web.example.com/=web-app:80" \
+#   --dry-run=client -o yaml > ingress.yaml
+#
+# # Get Ingresses
+# kubectl get ingress
+# kubectl get ingress -o wide
+# kubectl describe ingress <ingress-name>
+#
+# # View hosts assigned
+# kubectl get ingress <name> -o jsonpath='{.spec.rules[*].host}'
+#
+# # View backend services
+# kubectl get ingress <name> -o jsonpath='{.spec.rules[*].http.paths[*].backend.service.name}'
+#
+# # Edit Ingress
+# kubectl edit ingress <ingress-name>
+#
+# # Delete Ingress
+# kubectl delete ingress <ingress-name>
+
+---
+# ============================================================================
+# QUICK REFERENCE - NETWORKPOLICY COMMANDS
+# ============================================================================
+# # Get NetworkPolicies
+# kubectl get networkpolicies
+# kubectl get networkpolicies -o wide
+# kubectl describe networkpolicy <policy-name>
+#
+# # Test connectivity (exec into pod)
+# kubectl exec -it <pod-name> -- /bin/sh
+# curl http://target-pod-ip:port
+# nc -zv target-ip port
+#
+# # View pods with labels
+# kubectl get pods --show-labels
+#
+# # Add label to pod
+# kubectl label pod <pod-name> app=backend
+#
+# # Edit NetworkPolicy
+# kubectl edit networkpolicy <policy-name>
+#
+# # Delete NetworkPolicy
+# kubectl delete networkpolicy <policy-name>
