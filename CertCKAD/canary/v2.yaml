@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: my-app-v2
+  name: my-app-v2
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: my-app
+  strategy: {}
+  template:
+    metadata:
+      labels:
+        app: my-app
+        version: v2
+    spec:
+      containers:
+      - image: nginx:1.26
+        name: nginx
+        ports:
+        - containerPort: 80
+        resources: {}
+status: {}
