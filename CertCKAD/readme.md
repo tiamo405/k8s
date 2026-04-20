@@ -1,4 +1,11 @@
-
+```bash
+  ██████╗██╗  ██╗ █████╗ ██████╗ 
+ ██╔════╝██║ ██╔╝██╔══██╗██╔══██╗
+ ██║     █████╔╝ ███████║██║  ██║
+ ██║     ██╔═██╗ ██╔══██║██║  ██║
+ ╚██████╗██║  ██╗██║  ██║██████╔╝
+  ╚═════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═════╝ 
+```
 # Cách gán kubectl cho termial
 nano ~/.bashrc
 ```
@@ -294,4 +301,261 @@ metadata:
 provisioner: kubernetes.io/no-provisioner
 volumeBindingMode: WaitForFirstConsumer
 reclaimPolicy: Delete
+```
+
+# RBAC
+1. cách tạo role nhanh
+```bash
+kubectl create role <role-name> --verb=get,list,watch --resource=pods -n <namespace> --dry-run=client -o yaml > role.yaml
+```
+2 . tạo service account nhanh
+```bash
+kubectl create serviceaccount <serviceaccount-name> -n <namespace> --dry-run=client -o yaml > serviceaccount.yaml
+```
+3. cách tạo rolebinding nhanh
+```bash
+kubectl create rolebinding <rolebinding-name> --role=<role-name> --serviceaccount=<namespace>:<serviceaccount-name> -n <namespace> --dry-run=client -o yaml > rolebinding.yaml
+```
+4. flow lab theo folder `rbac/`
+```bash
+kubectl create ns rbac-test
+kubectl apply -f rbac/sa.yaml
+kubectl apply -f rbac/role.yaml
+kubectl apply -f rbac/rolebind.yaml
+kubectl apply -f rbac/pod.yaml
+
+kubectl -n rbac-test get sa,role,rolebinding,pod
+kubectl -n rbac-test auth can-i list pods --as=system:serviceaccount:rbac-test:app-sa
+```
+
+# Rolling Update && Rollback
+0. trong yaml deployment, cần có field `strategy.type: RollingUpdate` để có thể sử dụng rolling update
+```bash
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1 # số pod tối đa được phép chết
+      maxSurge: 1 # số lượng pod mới tối đa có thể được tạo ra trong quá trình update
+# replicas = 3 thì tạo thêm 1 pod mới, xóa 1 pod cũ => luôn đảm bảo có 3 pod chạy trong quá trình update
+```
+1. rolling update
+```bash
+kubectl set image -n <namespace> deployment <deployment-name> <container-name>=<image-name> 
+```
+2. theo dõi rollout status
+```bash
+kubectl rollout status -n <namespace> deployment <deployment-name>
+```
+3. history rollout
+```bash
+kubectl rollout history -n <namespace> deployment <deployment-name>
+```
+4. rollback
+```bash
+kubectl rollout undo -n <namespace> deployment <deployment-name>
+# rollback về revision cụ thể
+kubectl rollout undo -n <namespace> deployment <deployment-name> --to-revision=<revision-number>
+```
+5. flow lab theo folder `rollingUpdate-Rollback/`
+```bash
+kubectl create ns rolling
+kubectl apply -f rollingUpdate-Rollback/depl.yaml
+
+kubectl -n rolling set image deployment/myapp nginx=nginx:1.26 --record
+kubectl -n rolling rollout status deployment/myapp
+kubectl -n rolling rollout history deployment/myapp
+kubectl -n rolling rollout undo deployment/myapp
+```
+
+# Quota
+1. cách tạo resource quota nhanh
+```bash
+kubectl create quota <quota-name> --hard=requests.cpu=200m,requests.memory=512Mi,pods=10 -n <namespace> --dry-run=client -o yaml > quota.yaml
+```
+2. xem resource quota
+```bash
+kubectl get quota -n <namespace>
+```
+3. xem describe resource quota
+```bash
+kubectl describe quota <quota-name> -n <namespace>
+```
+4. sửa resource quota
+```bash
+kubectl edit quota <quota-name> -n <namespace>
+```
+5. cách tạo limit range nhanh
+```bash
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: limit-test
+  namespace: quota-ns
+spec:
+  limits:
+  - type: Container
+    default:
+      cpu: "300m"
+      memory: "256Mi"
+    defaultRequest:
+      cpu: "200m"
+      memory: "128Mi"
+    min:
+      cpu: "100m"
+      memory: "64Mi"
+    max:
+      cpu: "400m"
+      memory: "512Mi"
+```
+6. flow lab theo folder `resourceQuotaLimitRange/`
+```bash
+kubectl create ns quota-ns
+kubectl apply -f resourceQuotaLimitRange/quota.yaml
+kubectl apply -f resourceQuotaLimitRange/limitrange.yaml
+kubectl -n quota-ns get quota,limitrange
+
+# pod này request cpu=50m < min 100m nên sẽ bị từ chối
+kubectl apply -f resourceQuotaLimitRange/bad-pod.yaml
+kubectl -n quota-ns describe pod bad-pod
+```
+
+# cronjob
+1. cách tạo cronjob nhanh
+```bash
+kubectl create cronjob <cronjob-name> --image=busybox --schedule="*/5 * * * *" --dry-run=client -o yaml > cronjob.yaml
+
+schedule: '*/1 * * * *'
+concurrencyPolicy: Forbid
+successfulJobsHistoryLimit: 3
+failedJobsHistoryLimit: 1
+#các tham số cùng cấp với schedule
+```
+2. xem cronjob
+```bash
+kubectl get cronjob
+```
+3. xem describe cronjob
+```bash
+kubectl describe cronjob <cronjob-name>
+```
+4. sửa cronjob
+```bash
+kubectl edit cronjob <cronjob-name>
+```
+5. flow lab theo folder `cronjob/`
+```bash
+kubectl apply -f cronjob/cronjob.yaml
+kubectl get cronjob
+kubectl describe cronjob time-job
+kubectl get jobs --watch
+```
+
+# security context
+1. cách tạo pod với security context
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: sec-pod
+spec:
+  securityContext:
+    runAsUser: 1000
+    runAsGroup: 3000
+    fsGroup: 2000
+    runAsNonRoot: true
+  containers:
+  - image: ubuntu
+    name: sec-pod
+    command: ["sleep", "3600"]
+    resources: {}
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
+        add:
+          - NET_ADMIN
+      privileged: false
+  dnsPolicy: ClusterFirst
+  restartPolicy: Always
+```
+2. lưu ý theo lab hiện tại trong folder `security/`
+```bash
+# security/pod.yaml đang dùng runAsUser: 0 để demo quyền và capability drop
+kubectl apply -f security/pod.yaml
+kubectl get pod sec-pod
+kubectl describe pod sec-pod
+```
+3. best practice khi đề yêu cầu hardening
+```yaml
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+containers:
+- securityContext:
+    allowPrivilegeEscalation: false
+    privileged: false
+    capabilities:
+      drop: ["ALL"]
+```
+
+# canary deployment
+1. cách tạo canary deployment y như deployment chỉ là thêm trường version vào label để phân biệt với stable deployment
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: my-app
+    version: v1
+  name: my-app-v1
+spec:
+  replicas: 4
+  selector:
+    matchLabels:
+      app: my-app
+      version: v1
+  strategy: {}
+  template:
+    metadata:
+      labels:
+        app: my-app
+        version: v1
+    spec:
+      containers:
+      - image: nginx:1.25
+        name: nginx
+        ports: 
+        - containerPort: 80
+        resources: {}
+status: {}
+# tạo thêm deployment y hệt với version: v2, image: nginx:1.26, replicas: 1 
+```
+2. flow lab theo folder `canary/`
+```bash
+kubectl apply -f canary/v1.yaml
+kubectl apply -f canary/v2.yaml
+kubectl apply -f canary/svc.yaml
+
+kubectl get deploy my-app-v1 my-app-v2
+kubectl get svc my-service
+kubectl get pods -l app=my-app --show-labels
+```
+3. lưu ý để split traffic dễ kiểm soát
+```bash
+# Service selector nên match label chung của cả stable + canary
+selector:
+  app: my-app
+
+# Tỉ lệ traffic xấp xỉ theo số replicas (ví dụ 4:1 ~ 80/20)
+```
+
+# Tổng hợp nhanh theo folder mới
+```bash
+canary/ -> v1.yaml, v2.yaml, svc.yaml
+cronjob/ -> cronjob.yaml
+rbac/ -> sa.yaml, role.yaml, rolebind.yaml, pod.yaml
+resourceQuotaLimitRange/ -> quota.yaml, limitrange.yaml, bad-pod.yaml
+rollingUpdate-Rollback/ -> depl.yaml
+security/ -> pod.yaml
 ```
