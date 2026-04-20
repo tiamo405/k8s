@@ -1,0 +1,23 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: time-job
+spec:
+  jobTemplate:
+    metadata:
+      name: time-job
+    spec:
+      template:
+        metadata: {}
+        spec:
+          containers:
+          - image: busybox
+            name: time
+            command: ["/bin/sh", "-c", "date"]
+            resources: {}
+          restartPolicy: OnFailure
+  schedule: '*/1 * * * *'
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 1
+status: {}
