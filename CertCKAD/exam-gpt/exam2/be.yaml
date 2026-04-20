@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: backend
+  name: backend-app
+  namespace: exam2
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: backend
+  strategy: {}
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      initContainers:
+      - name: init-container
+        image: busybox
+        command: ['sh', '-c', 'echo "Hello CKAD" > /data/index.html']
+        volumeMounts:
+        - name:  pvc-volume
+          mountPath: /data
+      containers:
+      - image: nginx:alpine
+        name: nginx
+        ports:
+        - containerPort: 80
+        resources:
+          requests:
+            cpu: 100m
+          limits:
+            cpu: 200m
+        volumeMounts:
+        - name: pvc-volume
+          mountPath: /usr/share/nginx/html
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      volumes:
+      - name: pvc-volume
+        persistentVolumeClaim:
+          claimName: backend-pvc
