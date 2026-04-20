@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    run: bad-pod
+  name: bad-pod
+  namespace: quota-ns
+spec:
+  containers:
+  - image: nginx
+    name: bad-pod
+    resources:
+      requests:
+        cpu: 50m
+  dnsPolicy: ClusterFirst
+  restartPolicy: Always
+status: {}
