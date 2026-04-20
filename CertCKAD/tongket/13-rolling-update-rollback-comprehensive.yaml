@@ -1,0 +1,46 @@
+# ============================================================================
+# ROLLING UPDATE + ROLLBACK EXAMPLES (CKAD)
+# Aligned with: CertCKAD/rollingUpdate-Rollback/
+# ============================================================================
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: rolling
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: myapp
+  namespace: rolling
+  labels:
+    app: myapp
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: myapp
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: myapp
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:1.20
+        ports:
+        - containerPort: 80
+
+# Quick commands:
+# kubectl -n rolling rollout status deployment/myapp
+# kubectl -n rolling set image deployment/myapp nginx=nginx:1.26 --record
+# kubectl -n rolling rollout history deployment/myapp
+# kubectl -n rolling rollout undo deployment/myapp
+# kubectl -n rolling rollout undo deployment/myapp --to-revision=1

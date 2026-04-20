@@ -1,0 +1,79 @@
+# ============================================================================
+# CANARY DEPLOYMENT EXAMPLES (CKAD)
+# Aligned with: CertCKAD/canary/
+# ============================================================================
+
+---
+# Stable version (v1)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-app-v1
+  labels:
+    app: my-app
+    version: v1
+spec:
+  replicas: 4
+  selector:
+    matchLabels:
+      app: my-app
+      version: v1
+  template:
+    metadata:
+      labels:
+        app: my-app
+        version: v1
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:1.25
+        ports:
+        - containerPort: 80
+
+---
+# Canary version (v2)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-app-v2
+  labels:
+    app: my-app
+    version: v2
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: my-app
+      version: v2
+  template:
+    metadata:
+      labels:
+        app: my-app
+        version: v2
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:1.26
+        ports:
+        - containerPort: 80
+
+---
+# Shared service selector for traffic split by replica ratio
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-service
+  labels:
+    app: my-app
+spec:
+  selector:
+    app: my-app
+  ports:
+  - port: 80
+    targetPort: 80
+    protocol: TCP
+
+# NOTE:
+# - v1 replicas: 4
+# - v2 replicas: 1
+# => approximate traffic split 80/20

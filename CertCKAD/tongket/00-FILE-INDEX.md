@@ -1,10 +1,10 @@
 # CKAD Certification Study Materials - File Index
 
 ## 📋 Overview
-Bộ tài liệu hoàn chỉnh gồm 12 file giúp bạn chuẩn bị cho kỳ thi **Certified Kubernetes Application Developer (CKAD)**.
+Bộ tài liệu hoàn chỉnh gồm 19 file giúp bạn chuẩn bị cho kỳ thi **Certified Kubernetes Application Developer (CKAD)**.
 
-**Tổng cộng:** 12 files  
-**Định dạng:** 10 YAML + 1 Markdown + 1 này  
+**Tổng cộng:** 19 files  
+**Định dạng:** 16 YAML + 3 Markdown  
 **Phạm vi:** Bao phủ ~95% nội dung thi CKAD
 
 ---
@@ -12,7 +12,7 @@ Bộ tài liệu hoàn chỉnh gồm 12 file giúp bạn chuẩn bị cho kỳ t
 ## 📁 Chi tiết từng file
 
 ### 1️⃣ **01-deployment-comprehensive.yaml** (160 lines)
-🎯 **Deployment toàn diện - Core of CKAD**
+🎯 **Deployment examples tách nhỏ theo từng kiểu env/probe - Core of CKAD**
 
 ```yaml
 Includes:
@@ -20,8 +20,9 @@ Includes:
 ✅ Secret (generic, stringdata)
 ✅ PersistenceVolume & PersistenceVolumeClaim
 ✅ 6 loại volumes (emptyDir, hostPath, configMap, secret, PVC, downwardAPI)
-✅ 4 sources environment variables (literal, configMap, secret, fieldRef)
-✅ 3 types of probes (startup, liveness, readiness)
+✅ 4 deployments env riêng (literal, configMap, secret, fieldRef)
+✅ 1 deployment volumes riêng
+✅ 1 deployment probes riêng (startup, liveness, readiness)
 ✅ Resource requests & limits (CRITICAL for HPA)
 ✅ Init containers
 ✅ Volume mounts & downward API
@@ -36,7 +37,8 @@ Includes:
 ```bash
 kubectl apply -f 01-deployment-comprehensive.yaml
 kubectl get deployment
-kubectl describe deployment app-deployment
+kubectl describe deployment app-env-literal
+kubectl describe deployment app-probes
 kubectl get pods -o wide
 ```
 
@@ -364,7 +366,25 @@ code 11-exam-cheatsheet.md
 
 ---
 
-### 1️⃣2️⃣ **README.md** (500+ lines)
+### 1️⃣2️⃣ **12-canary-comprehensive.yaml** (100+ lines)
+🧪 **Canary Deployment**
+
+### 1️⃣3️⃣ **13-rolling-update-rollback-comprehensive.yaml** (80+ lines)
+🔁 **Rolling Update / Rollback**
+
+### 1️⃣4️⃣ **14-security-context-comprehensive.yaml** (90+ lines)
+🔒 **Security Context**
+
+### 1️⃣5️⃣ **15-cronjob-comprehensive.yaml** (50+ lines)
+⏰ **CronJob**
+
+### 1️⃣6️⃣ **16-rbac-comprehensive.yaml** (90+ lines)
+👮 **RBAC**
+
+### 1️⃣7️⃣ **17-resourcequota-limitrange-comprehensive.yaml** (90+ lines)
+📏 **ResourceQuota + LimitRange**
+
+### 1️⃣8️⃣ **README.md** (500+ lines)
 📚 **Study Guide & Instructions**
 
 **Bao gồm:**
@@ -391,8 +411,8 @@ Week 1: 01 + 02 (Pods & Deployments)
 Week 2: 04 + 05 (Config & Storage)
 Week 3: 03 + 08 (Services & Networking)
 Week 4: 06 + 07 (Probes & HPA)
-Week 5: 09 (StatefulSet)
-Week 6: 10 + 11 + Practice
+Week 5: 08 + 09 (Ingress/Network + StatefulSet)
+Week 6: 10 + 12 + 13 + 14 + 15 + 16 + 17 + 11 + Practice
 ```
 
 ### **Method 2: By Topic Search**
@@ -406,6 +426,12 @@ Week 6: 10 + 11 + Practice
 - **Ingress/Network?** → 08
 - **StatefulSet?** → 09
 - **Job/DaemonSet?** → 10
+- **Canary?** → 12
+- **Rolling Update/Rollback?** → 13
+- **Security Context?** → 14
+- **CronJob?** → 15
+- **RBAC?** → 16
+- **ResourceQuota/LimitRange?** → 17
 
 ### **Method 3: Exam Prep (2 weeks before)**
 1. Read 11-exam-cheatsheet.md daily
@@ -438,10 +464,11 @@ kubectl apply -f 01-deployment-comprehensive.yaml
 
 # Verify
 kubectl get all
-kubectl describe deployment app-deployment
+kubectl describe deployment app-env-literal
+kubectl describe deployment app-probes
 
 # Debug
-kubectl logs deployment/app-deployment
+kubectl logs deployment/app-env-literal
 kubectl exec -it <pod> -- /bin/sh
 
 # Cleanup
@@ -465,10 +492,16 @@ kubectl delete -f 01-deployment-comprehensive.yaml
 | **StatefulSet** | 09 | 280 |
 | **Other Resources** | 10 | 400 |
 | **Cheatsheet** | 11 | 500+ |
-| **README** | 12 | 500+ |
-| **INDEX (này)** | 13 | 300+ |
+| **Canary** | 12 | 100+ |
+| **Rolling/Rollback** | 13 | 80+ |
+| **Security Context** | 14 | 90+ |
+| **CronJob** | 15 | 50+ |
+| **RBAC** | 16 | 90+ |
+| **ResourceQuota/LimitRange** | 17 | 90+ |
+| **README** | 18 | 500+ |
+| **INDEX (này)** | 00 | 300+ |
 
-**Total:** 4,000+ lines of YAML & documentation
+**Total:** 4,500+ lines of YAML & documentation
 
 ---
 

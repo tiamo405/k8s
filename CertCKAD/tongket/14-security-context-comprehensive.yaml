@@ -1,0 +1,53 @@
+# ============================================================================
+# SECURITY CONTEXT EXAMPLES (CKAD)
+# Aligned with: CertCKAD/security/
+# ============================================================================
+
+---
+# Current lab style from security/pod.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: sec-pod
+  labels:
+    run: sec-pod
+spec:
+  securityContext:
+    runAsUser: 0
+  containers:
+  - name: sec-pod
+    image: nicolaka/netshoot
+    command: ["sleep", "3600"]
+    securityContext:
+      allowPrivilegeEscalation: false
+      privileged: false
+      capabilities:
+        drop:
+        - ALL
+
+---
+# Hardened version for exam hardening tasks
+apiVersion: v1
+kind: Pod
+metadata:
+  name: sec-pod-hardened
+  labels:
+    run: sec-pod-hardened
+spec:
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 3000
+    fsGroup: 2000
+  containers:
+  - name: app
+    image: nginx:1.25
+    ports:
+    - containerPort: 80
+    securityContext:
+      allowPrivilegeEscalation: false
+      privileged: false
+      readOnlyRootFilesystem: false
+      capabilities:
+        drop:
+        - ALL

@@ -158,6 +158,21 @@ kubectl rollout undo deployment/<name> --to-revision=2
 
 # Restart pods (recreate)
 kubectl rollout restart deployment/<name>
+
+# Canary pattern (2 deployments + 1 shared service selector)
+kubectl apply -f canary/v1.yaml
+kubectl apply -f canary/v2.yaml
+kubectl apply -f canary/svc.yaml
+kubectl get deploy my-app-v1 my-app-v2
+kubectl get svc my-service
+
+# Rolling update and rollback (namespace rolling)
+kubectl -n rolling apply -f rollingUpdate-Rollback/depl.yaml
+kubectl -n rolling set image deployment/myapp nginx=nginx:1.26 --record
+kubectl -n rolling rollout status deployment/myapp
+kubectl -n rolling rollout history deployment/myapp
+kubectl -n rolling rollout undo deployment/myapp
+kubectl -n rolling rollout undo deployment/myapp --to-revision=1
 ```
 
 ---
@@ -180,6 +195,43 @@ kubectl get limitrange -n <namespace>
 
 # Check pod resource requests/limits
 kubectl get pod <name> -o jsonpath='{.spec.containers[].resources}'
+
+# ResourceQuota/LimitRange labs
+kubectl apply -f resourceQuotaLimitRange/quota.yaml
+kubectl apply -f resourceQuotaLimitRange/limitrange.yaml
+kubectl -n quota-ns get resourcequota
+kubectl -n quota-ns get limitrange
+kubectl -n quota-ns apply -f resourceQuotaLimitRange/bad-pod.yaml
+```
+
+---
+
+## BATCH WORKLOADS (CRONJOB)
+
+```bash
+# CronJob lab
+kubectl apply -f cronjob/cronjob.yaml
+kubectl get cronjob
+kubectl describe cronjob time-job
+kubectl get jobs --watch
+kubectl get pods --selector=job-name
+```
+
+---
+
+## RBAC QUICK FLOW
+
+```bash
+# Setup RBAC lab
+kubectl create ns rbac-test
+kubectl apply -f rbac/sa.yaml
+kubectl apply -f rbac/role.yaml
+kubectl apply -f rbac/rolebind.yaml
+kubectl apply -f rbac/pod.yaml
+
+# Verify service account binding
+kubectl -n rbac-test get sa,role,rolebinding,pod
+kubectl -n rbac-test auth can-i list pods --as=system:serviceaccount:rbac-test:app-sa
 ```
 
 ---
@@ -426,6 +478,9 @@ dd      # Delete line
 - [ ] Wrong container port vs service port
 - [ ] Missing file permissions for secrets (should be 0600)
 - [ ] Trying to modify immutable fields (need replace)
+- [ ] Quên `rollout undo` khi update image lỗi
+- [ ] Canary selector bị lệch labels giữa svc và deployment
+- [ ] Quên namespace `rbac-test`, `quota-ns`, `rolling`
 
 ### 12. KUBECTL AUTOCOMPLETE (Save Time!)
 ```bash
@@ -506,3 +561,6 @@ k exec -it        # Auto-complete pod names with TAB
 - [ ] NetworkPolicy needs podSelector
 - [ ] Probes need proper endpoints and ports
 - [ ] Volumes need matching volumeMounts
+- [ ] Canary cần cùng label app cho service selector
+- [ ] Rolling rollback phải kiểm tra bằng `rollout history`
+- [ ] Security context: tránh chạy root nếu đề yêu cầu hardening

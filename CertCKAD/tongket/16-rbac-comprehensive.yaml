@@ -1,0 +1,64 @@
+# ============================================================================
+# RBAC EXAMPLES (CKAD)
+# Aligned with: CertCKAD/rbac/
+# ============================================================================
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: rbac-test
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: app-sa
+  namespace: rbac-test
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: pod-reader
+  namespace: rbac-test
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - get
+  - list
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: read-pods-binding
+  namespace: rbac-test
+subjects:
+- kind: ServiceAccount
+  name: app-sa
+  namespace: rbac-test
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: pod-reader
+
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: test-pod
+  namespace: rbac-test
+spec:
+  serviceAccountName: app-sa
+  containers:
+  - name: nginx
+    image: nginx
+
+# Quick commands:
+# kubectl apply -f 16-rbac-comprehensive.yaml
+# kubectl -n rbac-test get sa,role,rolebinding,pod
+# kubectl -n rbac-test auth can-i list pods --as=system:serviceaccount:rbac-test:app-sa
