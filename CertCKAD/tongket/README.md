@@ -7,10 +7,10 @@ Bộ tài liệu tổng hợp toàn bộ kiến thức và ví dụ YAML cần t
 ## 📂 Cấu trúc Tệp
 
 ### 1. **01-deployment-comprehensive.yaml** 🚀
-**Deployment toàn diện với tất cả loại volume**
+**Nhiều deployment nhỏ để học theo từng kiểu env, volume và probes**
 
 Bao gồm:
-- Deployment với replicas và rolling update strategy
+- Deployment tách riêng theo env: literal, ConfigMap, Secret, downwardAPI
 - ConfigMap (literal data, file data)
 - Secret (generic, stringdata)
 - PersistentVolume và PersistentVolumeClaim
@@ -22,7 +22,7 @@ Bao gồm:
   - PersistentVolumeClaim (storage persistent)
   - downwardAPI (pod metadata dưới dạng file)
 - Environment variables từ 4 nguồn (literal, ConfigMap, Secret, fieldRef)
-- Probes (liveness, readiness, startup)
+- Probes gom chung trong 1 deployment riêng
 - Resource requests/limits (QUAN TRỌNG cho HPA)
 
 **🎯 Cách sử dụng:**
@@ -33,8 +33,8 @@ kubectl apply -f 01-deployment-comprehensive.yaml
 # Kiểm tra
 kubectl get deployment
 kubectl get pod
-kubectl describe deployment app-deployment
-kubectl logs deployment/app-deployment
+kubectl describe deployment app-env-literal
+kubectl describe deployment app-probes
 ```
 
 ---
@@ -297,17 +297,14 @@ kubectl get pvc
 ---
 
 ### 10. **10-other-resources-comprehensive.yaml** 🔧
-**Job, CronJob, DaemonSet, RBAC, Quota, v.v.**
+**Job, DaemonSet, Namespace, PDB, Cluster RBAC mẫu chung**
 
 Bao gồm:
 - **Job:** One-time batch work, parallelism, array jobs
-- **CronJob:** Scheduled jobs (like cron)
 - **DaemonSet:** Run trên mỗi node (logging, monitoring)
 - **Namespace:** Resource isolation
-- **ResourceQuota:** Limit namespace resources
-- **LimitRange:** Default/min/max per pod
 - **PodDisruptionBudget:** Avoid disruptions
-- **RBAC:** Roles, RoleBinding, ServiceAccount
+- **RBAC mẫu chung:** Role/RoleBinding/ServiceAccount/ClusterRole
 
 **🎯 Job keywords:**
 - `completions`: Số lần chạy cần thành công
@@ -342,6 +339,72 @@ Bao gồm:
 
 ---
 
+### 12. **12-canary-comprehensive.yaml** 🧪
+**Canary deployment riêng**
+
+Bao gồm:
+- **Stable + Canary:** v1/v2 deployments
+- **Traffic split:** service selector chung theo label `app`
+
+**🎯 Cách sử dụng:**
+```bash
+kubectl apply -f 12-canary-comprehensive.yaml
+kubectl get deploy,svc
+kubectl get pods -l app=my-app --show-labels
+```
+
+---
+
+### 13. **13-rolling-update-rollback-comprehensive.yaml** 🔁
+**Rolling update và rollback riêng**
+
+Bao gồm:
+- Namespace `rolling`
+- Deployment có `strategy.type: RollingUpdate`
+- Command mẫu cho `rollout status/history/undo`
+
+---
+
+### 14. **14-security-context-comprehensive.yaml** 🔒
+**Security context riêng**
+
+Bao gồm:
+- Mẫu theo lab hiện tại (`runAsUser: 0`)
+- Mẫu hardened (`runAsNonRoot`, drop ALL capabilities)
+
+---
+
+### 15. **15-cronjob-comprehensive.yaml** ⏰
+**CronJob riêng theo folder `cronjob/`**
+
+Bao gồm:
+- `schedule: '*/1 * * * *'`
+- `concurrencyPolicy: Forbid`
+- `successfulJobsHistoryLimit` và `failedJobsHistoryLimit`
+
+---
+
+### 16. **16-rbac-comprehensive.yaml** 👮
+**RBAC riêng theo folder `rbac/`**
+
+Bao gồm:
+- Namespace `rbac-test`
+- ServiceAccount `app-sa`
+- Role + RoleBinding
+- Pod test dùng service account
+
+---
+
+### 17. **17-resourcequota-limitrange-comprehensive.yaml** 📏
+**ResourceQuota + LimitRange riêng theo folder `resourceQuotaLimitRange/`**
+
+Bao gồm:
+- Namespace `quota-ns`
+- `ResourceQuota` và `LimitRange`
+- `bad-pod` để test reject theo min CPU
+
+---
+
 ## 🚀 CÁCH DÙNG BỘ TÀI LIỆU NÀY
 
 ### **Tuần 1: Bộ Frameworks**
@@ -354,7 +417,8 @@ cp 01-deployment-comprehensive.yaml my-test.yaml
 # Edit trong VIM
 kubectl apply -f my-test.yaml
 kubectl get all
-kubectl describe deployment app-deployment
+kubectl describe deployment app-env-literal
+kubectl describe deployment app-probes
 ```
 
 ### **Tuần 2: Volumes & Storage**
@@ -394,8 +458,10 @@ kubectl run -it --rm debug --image=busybox -- wget -q -O- http://<service>:80
 
 ### **Tuần 5: Advanced Resources**
 1. Đọc 09-statefulset-comprehensive.yaml
-2. Đọc 02-pod-comprehensive.yaml (multi-container, probes)
-3. Đọc 10-other-resources-comprehensive.yaml
+2. Đọc 10-other-resources-comprehensive.yaml
+3. Đọc 12-canary-comprehensive.yaml
+4. Đọc 13-rolling-update-rollback-comprehensive.yaml
+5. Đọc 14-security-context-comprehensive.yaml
 
 ```bash
 # StatefulSet has ordered pod names
@@ -406,8 +472,11 @@ kubectl get pvc  # Check auto-created PVCs
 
 ### **Tuần 6: Practice & Polish**
 1. Đọc 11-exam-cheatsheet.md nhiều lần
-2. Làm tất cả bài tập trên một minidkube fresh
-3. Tính thời gian: 3-4 min mỗi question
+2. Đọc 15-cronjob-comprehensive.yaml
+3. Đọc 16-rbac-comprehensive.yaml
+4. Đọc 17-resourcequota-limitrange-comprehensive.yaml
+5. Làm tất cả bài tập trên một minikube fresh
+6. Tính thời gian: 3-4 min mỗi question
 
 ```bash
 # Reset practice (delete namespace)
@@ -435,6 +504,9 @@ time kubectl apply -f 01-deployment-comprehensive.yaml
 - [ ] HPA (CPU, memory, custom metrics)
 - [ ] Ingress (path, host-based routing, TLS)
 - [ ] NetworkPolicy (allow/deny ingress/egress)
+- [ ] Canary deployment (v1/v2 + shared service selector)
+- [ ] Rolling update và rollback
+- [ ] Pod/Container security context
 
 ### **Nên biết:**
 - [ ] Jobs & CronJobs
@@ -442,6 +514,8 @@ time kubectl apply -f 01-deployment-comprehensive.yaml
 - [ ] RBAC (roles, rolebindings)
 - [ ] Namespace & resource quota
 - [ ] Security context
+- [ ] Canary deployment strategy
+- [ ] Rolling update & rollback commands
 - [ ] Affinity & taints/tolerations
 
 ### **Low Priority:**
@@ -520,9 +594,15 @@ Week 4: Advanced Features
 
 Week 5: Stateful Applications
   - 09-statefulset-comprehensive.yaml
+  - 12-canary-comprehensive.yaml
+  - 13-rolling-update-rollback-comprehensive.yaml
+  - 14-security-context-comprehensive.yaml
 
 Week 6: Everything Else & Practice
   - 10-other-resources-comprehensive.yaml
+  - 15-cronjob-comprehensive.yaml
+  - 16-rbac-comprehensive.yaml
+  - 17-resourcequota-limitrange-comprehensive.yaml
   - 11-exam-cheatsheet.md
   - Practice mock exams
 ```
