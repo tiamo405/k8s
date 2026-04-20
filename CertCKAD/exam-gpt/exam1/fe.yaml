@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: frontend
+  name: frontend-app
+  namespace: test1
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: frontend-app
+  strategy: {}
+  template:
+    metadata:
+      labels:
+        app: frontend-app
+    spec:
+      containers:
+      - image: busybox
+        name: busybox
+        command: ["/bin/sh"]
+        args: ["-c", "sleep 3600"]
+        resources: {}
+status: {}

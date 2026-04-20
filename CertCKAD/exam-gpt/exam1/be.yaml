@@ -1,0 +1,37 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: backend
+  name: backend-app
+  namespace: test1
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: backend-app
+  strategy: {}
+  template:
+    metadata:
+      labels:
+        app: backend-app
+    spec:
+      containers:
+      - image: nginx
+        name: nginx
+        ports:
+        - containerPort: 80
+        resources: {}
+        volumeMounts:
+        - name: configmap-volume
+          mountPath: /etc/config
+        env:
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: backend-secret
+              key: DB_PASSWORD 
+      volumes:
+      - name: configmap-volume
+        configMap:
+          name: backend-config
