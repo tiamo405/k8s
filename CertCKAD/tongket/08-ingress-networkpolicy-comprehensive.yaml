@@ -291,7 +291,7 @@ metadata:
 spec:
   podSelector:
     matchLabels:
-      tier: web
+      app: web
   
   policyTypes:
   - Ingress
@@ -304,7 +304,7 @@ spec:
           name: monitoring
     ports:
     - protocol: TCP
-      port: 80
+      port: 80 # dday la port cua service trong monitoring tuc la monitoring-service:80 se duoc allow vao web trong namespace production
 
 ---
 # ============================================================================
@@ -318,7 +318,7 @@ metadata:
 spec:
   podSelector:
     matchLabels:
-      tier: web
+      app: web
   
   policyTypes:
   - Ingress
@@ -342,7 +342,7 @@ spec:
   - to:
     - podSelector:
         matchLabels:
-          tier: database
+          app: database
     ports:
     - protocol: TCP
       port: 5432

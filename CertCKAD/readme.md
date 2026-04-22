@@ -6,6 +6,7 @@
  ╚██████╗██║  ██╗██║  ██║██████╔╝
   ╚═════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═════╝ 
 ```
+<a id="kubectl-terminal"></a>
 # Cách gán kubectl cho termial
 nano ~/.bashrc
 ```
@@ -18,8 +19,30 @@ alias kdp='kubectl describe pod'
 source ~/.bashrc
 
 sau đó là có thể sử dụng được kubectl trên terminal như kubeclt get pods
- 
+
+# Menu
+
+- [Cách gán kubectl cho terminal](#kubectl-terminal)
+- [Pod](#pod)
+- [ConfigMap và Secret](#configmap-secret)
+- [Deployment](#deployment)
+- [Service](#service)
+- [Namespace](#namespace)
+- [Liveness, Readiness, Startup Probe](#probes)
+- [HPA](#hpa)
+- [Ingress](#ingress)
+- [Network Policy](#network-policy)
+- [PV PVC](#pv-pvc)
+- [RBAC](#rbac)
+- [Rolling Update && Rollback](#rolling-update-rollback)
+- [Quota](#quota)
+- [CronJob](#cronjob)
+- [Security Context](#security-context)
+- [Canary Deployment](#canary-deployment)
+
+<a id="pod"></a>
 # Pod
+
 1. cách tạo pod yml nhanh khi thi chứ không viết từ đầu
 ```bash
 kubectl run <tên-pod> --image=<tên-image> --dry-run=client -o yaml > pod.yaml
@@ -88,7 +111,9 @@ kubectl get events -l app=myapp
 # event theo pod
 kubectl get events --field-selector involvedObject.name=<pod-name>
 ```
+<a id="configmap-secret"></a>
 # ConfigMap và Secret
+
 1. tạo secret nhanh
 ```bash
 kubectl create secret generic <secret-name> --from-literal=username=admin --from-literal=password=password123 --dry-run=client -o yaml > my-secret.yaml
@@ -113,7 +138,9 @@ kubectl delete pod <pod-name>
 kubectl apply -f my-pod.yaml
 ```
 
+<a id="deployment"></a>
 # Deployment
+
 1. cách tạo deployment nhanh
 ```bash
 kubectl create deployment <deployment-name> --image=nginx --dry-run=client -o yaml > deployment.yaml
@@ -143,7 +170,9 @@ kubectl rollout undo deployment/<deployment-name>
 kubectl rollout history deployment/<deployment-name>
 ```
 
+<a id="service"></a>
 # Service
+
 1. cách tạo service nhanh
 ```bash
 kubectl expose deployment <deployment-name> --port=80 --target-port=80 --dry-run=client -o yaml > service.yaml
@@ -154,14 +183,19 @@ port: là cổng mà service sẽ expose ra bên ngoài
 targetPort: là cổng mà container trong pod đang lắng nghe, nếu không chỉ rõ targetPort thì mặc định sẽ là port
 nodePort: là cổng mà service sẽ expose ra trên node, nếu không chỉ rõ nodePort thì Kubernetes sẽ tự động chọn một cổng trong khoảng 30000-32767
 ```
+<a id="namespace"></a>
 # Namespace
+
 1. tạo namespace nhanh
 ```bash
 kubectl create namespace <namespace-name> --dry-run=client -o yaml > <namespace-name>.yaml
 ```
 
 
+<a id="probes"></a>
+
 # Liveness, Readiness, Startup Probe
+
 1. liveness : kiểm tra xem container có đang sống hay không, nếu không sống thì sẽ restart container
 2. readiness: kiểm tra xem container có sẵn sàng để nhận traffic hay không, nếu không sẵn sàng thì sẽ không gửi traffic đến container đó
 3. startup: kiểm tra xem container có khởi động thành công hay không, nếu không khởi động thành công thì sẽ restart container
@@ -203,7 +237,9 @@ spec:
       periodSeconds: 5
 ```
 
+<a id="hpa"></a>
 # HPA
+
 Cảnh báo thi CKAD: Nếu Pod không có requests.cpu => HPA sẽ không hoạt động => Mất điểm.
 luôn dùng apiVersion: autoscaling/v2  
 Không quên requests.cpu
@@ -232,7 +268,9 @@ kubectl get hpa <hpa-name> -o jsonpath='{.status.currentReplicas}'
 kubectl edit hpa <hpa-name>
 ```
 
+<a id="ingress"></a>
 # Ingress
+
 1. cách tạo ingress nhanh
 ```bash
 kubectl create ingress <ingress-name> --rule='host/path=service:port' --dry-run=client -o yaml > ingress.yaml
@@ -254,10 +292,87 @@ kubectl get ingress <ingress-name> -o jsonpath='{.spec.rules[*].host}'
 kubectl edit ingress <ingress-name>
 ```
 
-# network policy
+<a id="network-policy"></a>
+# Network Policy
 
+1. cách tạo network policy 
+  - deny-all
+```bash
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: deny-all
+  namespace: net-test
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+```
+  - allow specific pod + port
+```bash
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-http
+  namespace: net-test
+spec:
+  podSelector:
+    matchLabels:
+      app: backend
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app: frontend
+    ports:
+    - protocol: TCP
+      port: 80
+```
+  - allow specific namespace
+```bash
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-namespace
+  namespace: net-test
+spec:
+  podSelector:
+    matchLabels:
+      app: backend
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: frontend-namespace
+    ports:
+    - protocol: TCP
+      port: 80
+```
 
+2. xem network policy
+```bash
+kubectl get networkpolicy
+```
+3. xem describe network policy
+```bash
+kubectl describe networkpolicy <network-policy-name>
+```
+4. xem pod selector của network policy
+```bash
+kubectl get networkpolicy <network-policy-name> -o jsonpath='{.spec.podSelector.matchLabels}'
+```
+5. xem ingress rules của network policy
+```bash
+kubectl get networkpolicy <network-policy-name> -o jsonpath='{.spec.ingress[*].from[*].podSelector.matchLabels}'
+```
+
+<a id="pv-pvc"></a>
 # PV PVC
+
 1. cách tạo pv 
 ```bash
 # cần minikube ssh để tạo thư mục /mnt/data trên node minikube sudo mkdir -p /mnt/data
@@ -303,7 +418,9 @@ volumeBindingMode: WaitForFirstConsumer
 reclaimPolicy: Delete
 ```
 
+<a id="rbac"></a>
 # RBAC
+
 1. cách tạo role nhanh
 ```bash
 kubectl create role <role-name> --verb=get,list,watch --resource=pods -n <namespace> --dry-run=client -o yaml > role.yaml
@@ -316,7 +433,12 @@ kubectl create serviceaccount <serviceaccount-name> -n <namespace> --dry-run=cli
 ```bash
 kubectl create rolebinding <rolebinding-name> --role=<role-name> --serviceaccount=<namespace>:<serviceaccount-name> -n <namespace> --dry-run=client -o yaml > rolebinding.yaml
 ```
-4. flow lab theo folder `rbac/`
+4. thêm quyền cho service account vào pod
+```yaml
+spec:  
+  serviceAccountName: app-sa
+```
+5. flow lab theo folder `rbac/`
 ```bash
 kubectl create ns rbac-test
 kubectl apply -f rbac/sa.yaml
@@ -328,7 +450,9 @@ kubectl -n rbac-test get sa,role,rolebinding,pod
 kubectl -n rbac-test auth can-i list pods --as=system:serviceaccount:rbac-test:app-sa
 ```
 
+<a id="rolling-update-rollback"></a>
 # Rolling Update && Rollback
+
 0. trong yaml deployment, cần có field `strategy.type: RollingUpdate` để có thể sử dụng rolling update
 ```bash
   strategy:
@@ -367,7 +491,9 @@ kubectl -n rolling rollout history deployment/myapp
 kubectl -n rolling rollout undo deployment/myapp
 ```
 
+<a id="quota"></a>
 # Quota
+
 1. cách tạo resource quota nhanh
 ```bash
 kubectl create quota <quota-name> --hard=requests.cpu=200m,requests.memory=512Mi,pods=10 -n <namespace> --dry-run=client -o yaml > quota.yaml
@@ -419,7 +545,9 @@ kubectl apply -f resourceQuotaLimitRange/bad-pod.yaml
 kubectl -n quota-ns describe pod bad-pod
 ```
 
+<a id="cronjob"></a>
 # cronjob
+
 1. cách tạo cronjob nhanh
 ```bash
 kubectl create cronjob <cronjob-name> --image=busybox --schedule="*/5 * * * *" --dry-run=client -o yaml > cronjob.yaml
@@ -450,7 +578,9 @@ kubectl describe cronjob time-job
 kubectl get jobs --watch
 ```
 
+<a id="security-context"></a>
 # security context
+
 1. cách tạo pod với security context
 ```yaml
 apiVersion: v1
@@ -499,7 +629,9 @@ containers:
       drop: ["ALL"]
 ```
 
+<a id="canary-deployment"></a>
 # canary deployment
+
 1. cách tạo canary deployment y như deployment chỉ là thêm trường version vào label để phân biệt với stable deployment
 ```yaml
 apiVersion: apps/v1

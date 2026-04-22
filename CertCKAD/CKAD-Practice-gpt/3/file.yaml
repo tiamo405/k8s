@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: app-sa
+  namespace: gpt-3
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: log-reader
+  namespace: gpt-3
+spec:
+  serviceAccountName: app-sa
+  containers:
+  - name: busybox
+    image: busybox:latest
+    command: ["/bin/sh", "-c"]
+    args:
+      - >
+        wget -qO- https://kubernetes.default/api/v1/namespaces/gpt-3/pods \
+        --header="Authorization: Bearer $(cat /var/run/secrets/kubernetes.io/serviceaccount/token)" \
+        --no-check-certificate || sleep 3600

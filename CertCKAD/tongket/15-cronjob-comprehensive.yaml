@@ -10,13 +10,14 @@ metadata:
   name: time-job
 spec:
   schedule: '*/1 * * * *'
-  concurrencyPolicy: Forbid
-  successfulJobsHistoryLimit: 3
-  failedJobsHistoryLimit: 1
+  concurrencyPolicy: Forbid # nếu job đang chạy mà đến lịch chạy tiếp theo thì sẽ bị bỏ qua 
+  successfulJobsHistoryLimit: 3 # giữ lại 3 job thành công gần nhất
+  failedJobsHistoryLimit: 1 # giữ lại 1 job thất bại gần nhất
   jobTemplate:
     metadata:
       name: time-job
     spec:
+      activeDeadlineSeconds: 300 # sau 5 phút nếu job chưa hoàn thành sẽ bị kill
       template:
         spec:
           restartPolicy: OnFailure
